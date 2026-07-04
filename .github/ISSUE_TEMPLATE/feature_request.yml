@@ -1,0 +1,31 @@
+name: Feature Request
+description: Suggest an idea for this project
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: What feature would you like to see?
+      placeholder: Describe the feature you want to add.
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: What workflow, client, provider, or deployment would this help?
+      placeholder: Explain the problem this would solve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Note any compatibility, fallback, streaming, or security constraints to preserve.
+      placeholder: Any invariants or edge cases this should account for?
+    validations:
+      required: false

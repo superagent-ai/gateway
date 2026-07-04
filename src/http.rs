@@ -143,10 +143,16 @@ fn candidates(
     client: ClientProtocol,
     req: &Requirements,
 ) -> Result<Vec<(String, RouteConfig)>, GatewayError> {
-    let model = st.cfg.models.get(alias).ok_or_else(|| GatewayError::UnknownModel(alias.into()))?;
+    let model = st
+        .cfg
+        .models
+        .get(alias)
+        .ok_or_else(|| GatewayError::UnknownModel(alias.into()))?;
     let level = classify::compat_for(&model.compatibility, client);
     if level == CompatLevel::Blocked {
-        return Err(GatewayError::capability(format!("model '{alias}' is blocked for this client")));
+        return Err(GatewayError::capability(format!(
+            "model '{alias}' is blocked for this client"
+        )));
     }
     let allow_degraded = model
         .fallback
@@ -154,13 +160,18 @@ fn candidates(
         .and_then(|f| f.allow_degraded_fallback)
         .unwrap_or(st.cfg.fallback.allow_degraded_fallback);
 
-    let ordered: Vec<(String, RouteConfig)> = match model.fallback.as_ref().and_then(|f| f.routes.clone()) {
-        Some(ids) => ids
-            .iter()
-            .filter_map(|id| st.routes.get(id).cloned())
-            .collect(),
-        None => model.routes.iter().map(|r| (alias.to_string(), r.clone())).collect(),
-    };
+    let ordered: Vec<(String, RouteConfig)> =
+        match model.fallback.as_ref().and_then(|f| f.routes.clone()) {
+            Some(ids) => ids
+                .iter()
+                .filter_map(|id| st.routes.get(id).cloned())
+                .collect(),
+            None => model
+                .routes
+                .iter()
+                .map(|r| (alias.to_string(), r.clone()))
+                .collect(),
+        };
 
     let mut reasons = Vec::new();
     let eligible: Vec<(String, RouteConfig)> = ordered
@@ -221,7 +232,10 @@ fn translate_request_body(client: ClientProtocol, route: &RouteConfig, body: &Va
         }
         // Pivot through Anthropic Messages: Responses -> Messages -> Chat.
         (ClientProtocol::OpenAiResponses, ProviderKind::OpenaiCompatible) => {
-            translate::anthropic_to_chat(&translate::responses_to_anthropic(body, &route.model), &route.model)
+            translate::anthropic_to_chat(
+                &translate::responses_to_anthropic(body, &route.model),
+                &route.model,
+            )
         }
     }
 }
@@ -265,7 +279,12 @@ fn upstream_request(
     rb.json(body)
 }
 
-fn translate_response_body(client: ClientProtocol, provider: ProviderKind, alias: &str, upstream: &Value) -> Value {
+fn translate_response_body(
+    client: ClientProtocol,
+    provider: ProviderKind,
+    alias: &str,
+    upstream: &Value,
+) -> Value {
     match (client, provider) {
         (ClientProtocol::AnthropicMessages, ProviderKind::Anthropic) => upstream.clone(),
         (ClientProtocol::AnthropicMessages, ProviderKind::OpenaiCompatible) => {
@@ -280,9 +299,16 @@ fn translate_response_body(client: ClientProtocol, provider: ProviderKind, alias
     }
 }
 
-fn sse_response(body_stream: impl futures_util::Stream<Item = Result<bytes::Bytes, std::convert::Infallible>> + Send + 'static) -> Response {
+fn sse_response(
+    body_stream: impl futures_util::Stream<Item = Result<bytes::Bytes, std::convert::Infallible>>
+        + Send
+        + 'static,
+) -> Response {
     (
-        [(header::CONTENT_TYPE, "text/event-stream"), (header::CACHE_CONTROL, "no-cache")],
+        [
+            (header::CONTENT_TYPE, "text/event-stream"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
         Body::from_stream(body_stream),
     )
         .into_response()
@@ -371,12 +397,21 @@ fn resolve_alias(cfg: &Config, body: &Value) -> Result<String, GatewayError> {
     }
     for e in &cfg.model_map {
         if crate::config::glob_match(&e.pattern, requested) {
-            tracing::info!(requested, pattern = e.pattern, model = e.model, "model_map routed request");
+            tracing::info!(
+                requested,
+                pattern = e.pattern,
+                model = e.model,
+                "model_map routed request"
+            );
             return Ok(e.model.clone());
         }
     }
     if let Some(d) = &cfg.default_model {
-        tracing::info!(requested, default = d, "unknown model id routed to default_model");
+        tracing::info!(
+            requested,
+            default = d,
+            "unknown model id routed to default_model"
+        );
         return Ok(d.clone());
     }
     Err(GatewayError::UnknownModel(requested.into()))
@@ -398,7 +433,9 @@ async fn execute(
         ClientProtocol::OpenAiResponses => classify::classify_responses(&body),
     };
     if client == ClientProtocol::OpenAiResponses
-        && body.get("previous_response_id").is_some_and(|v| !v.is_null())
+        && body
+            .get("previous_response_id")
+            .is_some_and(|v| !v.is_null())
     {
         return Err(GatewayError::capability(
             "previous_response_id is not supported; send full conversation input",
@@ -430,11 +467,12 @@ async fn execute(
     let mut last_err: Option<GatewayError> = None;
     for (attempt, (_owner, route)) in plan.into_iter().enumerate() {
         if attempt > 0 {
-            let jitter = 100 + (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .subsec_nanos() as u64
-                % 250);
+            let jitter = 100
+                + (std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .subsec_nanos() as u64
+                    % 250);
             tokio::time::sleep(Duration::from_millis(jitter)).await;
         }
         let upstream_body = build_upstream_body(client, route, &body);
@@ -485,7 +523,11 @@ async fn execute(
                 body = %String::from_utf8_lossy(&bytes[..bytes.len().min(2000)]),
                 "upstream error"
             );
-            let err = GatewayError::Upstream { status, body: bytes, content_type };
+            let err = GatewayError::Upstream {
+                status,
+                body: bytes,
+                content_type,
+            };
             if retryable && attempt + 1 < total {
                 last_err = Some(err);
                 continue;
@@ -499,24 +541,28 @@ async fn execute(
                 (ClientProtocol::AnthropicMessages, ProviderKind::Anthropic) => {
                     passthrough_stream(resp, request_id)
                 }
-                (ClientProtocol::AnthropicMessages, ProviderKind::OpenaiCompatible) => translated_stream(
-                    resp,
-                    Box::new(ChatParser::default()),
-                    Box::new(AnthropicRenderer::new(alias.clone())),
-                    request_id,
-                ),
+                (ClientProtocol::AnthropicMessages, ProviderKind::OpenaiCompatible) => {
+                    translated_stream(
+                        resp,
+                        Box::new(ChatParser::default()),
+                        Box::new(AnthropicRenderer::new(alias.clone())),
+                        request_id,
+                    )
+                }
                 (ClientProtocol::OpenAiResponses, ProviderKind::Anthropic) => translated_stream(
                     resp,
                     Box::new(AnthropicParser),
                     Box::new(ResponsesRenderer::new(alias.clone())),
                     request_id,
                 ),
-                (ClientProtocol::OpenAiResponses, ProviderKind::OpenaiCompatible) => translated_stream(
-                    resp,
-                    Box::new(ChatParser::default()),
-                    Box::new(ResponsesRenderer::new(alias.clone())),
-                    request_id,
-                ),
+                (ClientProtocol::OpenAiResponses, ProviderKind::OpenaiCompatible) => {
+                    translated_stream(
+                        resp,
+                        Box::new(ChatParser::default()),
+                        Box::new(ResponsesRenderer::new(alias.clone())),
+                        request_id,
+                    )
+                }
             });
         }
         let upstream_json: Value = resp.json().await?;
@@ -562,17 +608,21 @@ async fn handle(
     body: String,
 ) -> Result<Response, GatewayError> {
     check_auth(&st.cfg, &headers)?;
-    let body: Value =
-        serde_json::from_str(&body).map_err(|e| GatewayError::BadRequest(format!("invalid JSON: {e}")))?;
+    let body: Value = serde_json::from_str(&body)
+        .map_err(|e| GatewayError::BadRequest(format!("invalid JSON: {e}")))?;
     execute(st, client, body, headers).await
 }
 
-async fn count_tokens(State(st): State<Arc<AppState>>, headers: HeaderMap, body: String) -> Response {
+async fn count_tokens(
+    State(st): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: String,
+) -> Response {
     let client = ClientProtocol::AnthropicMessages;
     let result: Result<Response, GatewayError> = async {
         check_auth(&st.cfg, &headers)?;
-        let body: Value =
-            serde_json::from_str(&body).map_err(|e| GatewayError::BadRequest(format!("invalid JSON: {e}")))?;
+        let body: Value = serde_json::from_str(&body)
+            .map_err(|e| GatewayError::BadRequest(format!("invalid JSON: {e}")))?;
         let alias = resolve_alias(&st.cfg, &body)?;
         let req = classify::classify_anthropic(&body);
         let routes = candidates(&st, &alias, client, &req)?;
@@ -598,17 +648,31 @@ async fn count_tokens(State(st): State<Arc<AppState>>, headers: HeaderMap, body:
                     .map(String::from);
                 let bytes = resp.bytes().await?;
                 if !(200..300).contains(&status) {
-                    return Err(GatewayError::Upstream { status, body: bytes, content_type });
+                    return Err(GatewayError::Upstream {
+                        status,
+                        body: bytes,
+                        content_type,
+                    });
                 }
-                Ok((StatusCode::OK, [(header::CONTENT_TYPE, "application/json")], bytes).into_response())
+                Ok((
+                    StatusCode::OK,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    bytes,
+                )
+                    .into_response())
             }
             ProviderKind::OpenaiCompatible => {
                 // Rough estimate: ~4 chars per token over the serialized prompt.
                 let text = format!(
                     "{}{}{}",
-                    body["system"], body["messages"], body.get("tools").unwrap_or(&Value::Null)
+                    body["system"],
+                    body["messages"],
+                    body.get("tools").unwrap_or(&Value::Null)
                 );
-                Ok(Json(json!({"input_tokens": (text.chars().count() / 4).max(1)})).into_response())
+                Ok(
+                    Json(json!({"input_tokens": (text.chars().count() / 4).max(1)}))
+                        .into_response(),
+                )
             }
         }
     }

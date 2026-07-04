@@ -2,7 +2,11 @@ use clap::Parser;
 use gateway::{http, schema};
 
 #[derive(Parser)]
-#[command(name = "gateway", version, about = "A tiny Rust gateway for running coding agents across model providers safely")]
+#[command(
+    name = "gateway",
+    version,
+    about = "A tiny Rust gateway for running coding agents across model providers safely"
+)]
 struct Args {
     /// Path to the YAML config file
     #[arg(long, default_value = "./gateway.yaml")]
@@ -22,7 +26,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load ./.env.local and ./.env (if present) so provider keys work even
     // when the shell didn't source them. Existing env vars take precedence.
     for path in [".env.local", ".env"] {
-        let Ok(content) = std::fs::read_to_string(path) else { continue };
+        let Ok(content) = std::fs::read_to_string(path) else {
+            continue;
+        };
         for line in content.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -50,9 +56,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let bind = cfg.server.bind.clone();
-    let is_local = bind.starts_with("127.") || bind.starts_with("localhost") || bind.starts_with("[::1]");
+    let is_local =
+        bind.starts_with("127.") || bind.starts_with("localhost") || bind.starts_with("[::1]");
     if !is_local && cfg.auth.tokens.is_empty() {
-        return Err("refusing to bind to a non-localhost address without auth tokens configured".into());
+        return Err(
+            "refusing to bind to a non-localhost address without auth tokens configured".into(),
+        );
     }
 
     let app = http::build_router(cfg);
@@ -68,7 +77,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
     }
-    tracing::info!(bind, version = env!("CARGO_PKG_VERSION"), "gateway listening");
+    tracing::info!(
+        bind,
+        version = env!("CARGO_PKG_VERSION"),
+        "gateway listening"
+    );
     axum::serve(listener, app).await?;
     Ok(())
 }

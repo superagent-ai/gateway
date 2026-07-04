@@ -74,7 +74,11 @@ pub struct FallbackConfig {
 
 impl Default for FallbackConfig {
     fn default() -> Self {
-        Self { max_attempts: d_attempts(), retryable_statuses: d_retryable(), allow_degraded_fallback: false }
+        Self {
+            max_attempts: d_attempts(),
+            retryable_statuses: d_retryable(),
+            allow_degraded_fallback: false,
+        }
     }
 }
 
@@ -126,7 +130,11 @@ pub struct TelemetryConfig {
 
 impl Default for TelemetryConfig {
     fn default() -> Self {
-        Self { log_prompts: false, log_tool_calls: true, redact_headers: vec!["authorization".into(), "x-api-key".into()] }
+        Self {
+            log_prompts: false,
+            log_tool_calls: true,
+            redact_headers: vec!["authorization".into(), "x-api-key".into()],
+        }
     }
 }
 
@@ -205,9 +213,11 @@ pub struct RouteConfig {
 
 impl RouteConfig {
     pub fn resolve_api_key(&self) -> Option<String> {
-        self.api_key
-            .clone()
-            .or_else(|| self.api_key_env.as_ref().and_then(|e| std::env::var(e).ok()))
+        self.api_key.clone().or_else(|| {
+            self.api_key_env
+                .as_ref()
+                .and_then(|e| std::env::var(e).ok())
+        })
     }
 
     pub fn base(&self) -> &str {
@@ -298,14 +308,19 @@ impl Config {
         }
         for e in &self.model_map {
             if !self.models.contains_key(&e.model) {
-                return Err(format!("model_map '{}' targets unknown model '{}'", e.pattern, e.model));
+                return Err(format!(
+                    "model_map '{}' targets unknown model '{}'",
+                    e.pattern, e.model
+                ));
             }
         }
         for (alias, m) in &self.models {
             if let Some(routes) = m.fallback.as_ref().and_then(|f| f.routes.as_ref()) {
                 for id in routes {
                     if !ids.contains(id) {
-                        return Err(format!("model '{alias}' fallback references unknown route '{id}'"));
+                        return Err(format!(
+                            "model '{alias}' fallback references unknown route '{id}'"
+                        ));
                     }
                 }
             }
@@ -354,8 +369,14 @@ models:
 "#;
         let cfg: Config = serde_yaml::from_str(yaml).unwrap();
         cfg.validate().unwrap();
-        assert_eq!(cfg.models["claude-sonnet"].compatibility.codex, CompatLevel::Full);
-        assert!(cfg.models["claude-qwen-local"].compatibility.codex.is_degraded());
+        assert_eq!(
+            cfg.models["claude-sonnet"].compatibility.codex,
+            CompatLevel::Full
+        );
+        assert!(cfg.models["claude-qwen-local"]
+            .compatibility
+            .codex
+            .is_degraded());
         assert_eq!(cfg.route_index()["local-qwen"].0, "claude-qwen-local");
     }
 

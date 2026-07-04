@@ -39,7 +39,11 @@ fn parse_args(args: &Value) -> Value {
 fn image_part_from_anthropic(b: &Value) -> Option<Value> {
     let src = b.get("source")?;
     let url = match src.get("type").and_then(Value::as_str) {
-        Some("base64") => format!("data:{};base64,{}", str_of(src, "media_type"), str_of(src, "data")),
+        Some("base64") => format!(
+            "data:{};base64,{}",
+            str_of(src, "media_type"),
+            str_of(src, "data")
+        ),
         Some("url") => str_of(src, "url").to_string(),
         _ => return None,
     };
@@ -98,7 +102,11 @@ pub fn anthropic_to_chat(body: &Value, upstream_model: &str) -> Value {
     }
 
     let empty = Vec::new();
-    for msg in body.get("messages").and_then(Value::as_array).unwrap_or(&empty) {
+    for msg in body
+        .get("messages")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty)
+    {
         let role = str_of(msg, "role");
         match msg.get("content") {
             Some(Value::String(text)) => messages.push(json!({"role": role, "content": text})),
@@ -140,7 +148,14 @@ pub fn anthropic_to_chat(body: &Value, upstream_model: &str) -> Value {
                 if role == "assistant" && (!tool_calls.is_empty() || !text.is_empty()) {
                     let mut m = Map::new();
                     m.insert("role".into(), json!("assistant"));
-                    m.insert("content".into(), if text.is_empty() { Value::Null } else { json!(text) });
+                    m.insert(
+                        "content".into(),
+                        if text.is_empty() {
+                            Value::Null
+                        } else {
+                            json!(text)
+                        },
+                    );
                     if !tool_calls.is_empty() {
                         m.insert("tool_calls".into(), json!(tool_calls));
                     }
@@ -197,7 +212,12 @@ pub fn anthropic_to_chat(body: &Value, upstream_model: &str) -> Value {
     copy_fields(
         body,
         &mut out,
-        &[("max_tokens", "max_tokens"), ("temperature", "temperature"), ("top_p", "top_p"), ("stop_sequences", "stop")],
+        &[
+            ("max_tokens", "max_tokens"),
+            ("temperature", "temperature"),
+            ("top_p", "top_p"),
+            ("stop_sequences", "stop"),
+        ],
     );
     if body.get("stream").and_then(Value::as_bool).unwrap_or(false) {
         out.insert("stream".into(), json!(true));
@@ -228,7 +248,11 @@ pub fn chat_to_anthropic(resp: &Value, alias: &str) -> Value {
         }
     }
     let empty = Vec::new();
-    for tc in msg.get("tool_calls").and_then(Value::as_array).unwrap_or(&empty) {
+    for tc in msg
+        .get("tool_calls")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty)
+    {
         content.push(json!({
             "type": "tool_use",
             "id": if str_of(tc, "id").is_empty() { format!("toolu_{}", uuid::Uuid::new_v4().simple()) } else { str_of(tc, "id").into() },
@@ -277,7 +301,10 @@ pub fn responses_to_anthropic(body: &Value, upstream_model: &str) -> Value {
         }
         Some(Value::Array(items)) => {
             for item in items {
-                let ty = item.get("type").and_then(Value::as_str).unwrap_or("message");
+                let ty = item
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("message");
                 match ty {
                     "message" => {
                         let role = str_of(item, "role");
@@ -359,9 +386,20 @@ pub fn responses_to_anthropic(body: &Value, upstream_model: &str) -> Value {
     }
     out.insert(
         "max_tokens".into(),
-        body.get("max_output_tokens").cloned().filter(|v| !v.is_null()).unwrap_or(json!(8192)),
+        body.get("max_output_tokens")
+            .cloned()
+            .filter(|v| !v.is_null())
+            .unwrap_or(json!(8192)),
     );
-    copy_fields(body, &mut out, &[("temperature", "temperature"), ("top_p", "top_p"), ("stream", "stream")]);
+    copy_fields(
+        body,
+        &mut out,
+        &[
+            ("temperature", "temperature"),
+            ("top_p", "top_p"),
+            ("stream", "stream"),
+        ],
+    );
     Value::Object(out)
 }
 
@@ -372,7 +410,12 @@ pub fn responses_to_anthropic(body: &Value, upstream_model: &str) -> Value {
 pub fn anthropic_to_responses(resp: &Value, alias: &str) -> Value {
     let mut output: Vec<Value> = Vec::new();
     let empty = Vec::new();
-    for (i, b) in resp["content"].as_array().unwrap_or(&empty).iter().enumerate() {
+    for (i, b) in resp["content"]
+        .as_array()
+        .unwrap_or(&empty)
+        .iter()
+        .enumerate()
+    {
         match b.get("type").and_then(Value::as_str) {
             Some("text") => output.push(json!({
                 "type": "message",
@@ -393,7 +436,10 @@ pub fn anthropic_to_responses(resp: &Value, alias: &str) -> Value {
         }
     }
     let usage = &resp["usage"];
-    let (inp, outp) = (usage["input_tokens"].as_u64().unwrap_or(0), usage["output_tokens"].as_u64().unwrap_or(0));
+    let (inp, outp) = (
+        usage["input_tokens"].as_u64().unwrap_or(0),
+        usage["output_tokens"].as_u64().unwrap_or(0),
+    );
     json!({
         "id": format!("resp_{}", str_of(resp, "id")),
         "object": "response",
@@ -428,10 +474,19 @@ mod tests {
         let chat = anthropic_to_chat(&req, "gpt-5.1");
         assert_eq!(chat["model"], "gpt-5.1");
         assert_eq!(chat["stream"], true);
-        assert_eq!(chat["messages"][0], json!({"role": "system", "content": "You are an agent..."}));
-        assert_eq!(chat["messages"][1], json!({"role": "user", "content": "Fix the tests"}));
+        assert_eq!(
+            chat["messages"][0],
+            json!({"role": "system", "content": "You are an agent..."})
+        );
+        assert_eq!(
+            chat["messages"][1],
+            json!({"role": "user", "content": "Fix the tests"})
+        );
         assert_eq!(chat["tools"][0]["function"]["name"], "bash");
-        assert_eq!(chat["tools"][0]["function"]["parameters"]["properties"]["cmd"]["type"], "string");
+        assert_eq!(
+            chat["tools"][0]["function"]["parameters"]["properties"]["cmd"]["type"],
+            "string"
+        );
     }
 
     #[test]
@@ -452,8 +507,14 @@ mod tests {
         let chat = anthropic_to_chat(&req, "gpt");
         let msgs = chat["messages"].as_array().unwrap();
         assert_eq!(msgs[1]["tool_calls"][0]["id"], "toolu_1");
-        assert_eq!(msgs[1]["tool_calls"][0]["function"]["arguments"], "{\"cmd\":\"npm test\"}");
-        assert_eq!(msgs[2], json!({"role": "tool", "tool_call_id": "toolu_1", "content": "ok"}));
+        assert_eq!(
+            msgs[1]["tool_calls"][0]["function"]["arguments"],
+            "{\"cmd\":\"npm test\"}"
+        );
+        assert_eq!(
+            msgs[2],
+            json!({"role": "tool", "tool_call_id": "toolu_1", "content": "ok"})
+        );
     }
 
     #[test]
@@ -468,8 +529,14 @@ mod tests {
         });
         let chat = anthropic_to_chat(&req, "kimi");
         let content = chat["messages"][0]["content"].as_array().unwrap();
-        assert_eq!(content[0], json!({"type": "text", "text": "describe this image"}));
-        assert_eq!(content[1], json!({"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}));
+        assert_eq!(
+            content[0],
+            json!({"type": "text", "text": "describe this image"})
+        );
+        assert_eq!(
+            content[1],
+            json!({"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}})
+        );
 
         // Image returned by a tool (Claude Code's Read tool on a screenshot):
         // tool message keeps the text, image is relayed in a trailing user message.
@@ -492,7 +559,10 @@ mod tests {
         assert_eq!(msgs[1]["role"], "tool");
         assert_eq!(msgs[1]["content"], "read image");
         assert_eq!(msgs[2]["role"], "user");
-        assert_eq!(msgs[2]["content"][0]["image_url"]["url"], "data:image/png;base64,BBBB");
+        assert_eq!(
+            msgs[2]["content"][0]["image_url"]["url"],
+            "data:image/png;base64,BBBB"
+        );
     }
 
     #[test]
@@ -545,7 +615,10 @@ mod tests {
         });
         let chat = anthropic_to_chat(&history, "moonshotai/kimi-k2.7-code");
         let assistant = &chat["messages"][1];
-        assert_eq!(assistant["reasoning_content"], "I should run the tests first.");
+        assert_eq!(
+            assistant["reasoning_content"],
+            "I should run the tests first."
+        );
         assert_eq!(assistant["reasoning"], "I should run the tests first.");
         assert_eq!(assistant["tool_calls"][0]["id"], "call_1");
     }
@@ -563,7 +636,10 @@ mod tests {
         });
         let a = chat_to_anthropic(&resp, "claude-gpt-coder");
         assert_eq!(a["stop_reason"], "tool_use");
-        assert_eq!(a["content"][0], json!({"type": "tool_use", "id": "call_1", "name": "bash", "input": {"cmd": "ls"}}));
+        assert_eq!(
+            a["content"][0],
+            json!({"type": "tool_use", "id": "call_1", "name": "bash", "input": {"cmd": "ls"}})
+        );
         assert_eq!(a["usage"], json!({"input_tokens": 10, "output_tokens": 5}));
     }
 
@@ -580,8 +656,14 @@ mod tests {
         assert_eq!(a["model"], "claude-sonnet-4-6");
         assert_eq!(a["max_tokens"], 8192);
         assert_eq!(a["stream"], true);
-        assert_eq!(a["messages"][0], json!({"role": "user", "content": [{"type": "text", "text": "Fix the failing test"}]}));
-        assert_eq!(a["tools"][0]["input_schema"]["properties"]["cmd"]["type"], "string");
+        assert_eq!(
+            a["messages"][0],
+            json!({"role": "user", "content": [{"type": "text", "text": "Fix the failing test"}]})
+        );
+        assert_eq!(
+            a["tools"][0]["input_schema"]["properties"]["cmd"]["type"],
+            "string"
+        );
     }
 
     #[test]
@@ -597,8 +679,14 @@ mod tests {
         });
         let a = responses_to_anthropic(&req, "claude");
         assert_eq!(a["system"], "You are Codex.");
-        assert_eq!(a["messages"][1]["content"][0], json!({"type": "tool_use", "id": "toolu_123", "name": "bash", "input": {"cmd": "npm test"}}));
-        assert_eq!(a["messages"][2]["content"][0], json!({"type": "tool_result", "tool_use_id": "toolu_123", "content": "all passed"}));
+        assert_eq!(
+            a["messages"][1]["content"][0],
+            json!({"type": "tool_use", "id": "toolu_123", "name": "bash", "input": {"cmd": "npm test"}})
+        );
+        assert_eq!(
+            a["messages"][2]["content"][0],
+            json!({"type": "tool_result", "tool_use_id": "toolu_123", "content": "all passed"})
+        );
     }
 
     #[test]

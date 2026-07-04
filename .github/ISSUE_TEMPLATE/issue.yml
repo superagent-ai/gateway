@@ -1,0 +1,39 @@
+name: Issue
+description: Open a general issue
+title: "[Issue]: "
+labels: ["triage"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should be tracked or discussed?
+      placeholder: Describe the issue.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the gateway does this relate to?
+      options:
+        - Configuration
+        - Routing or fallback
+        - Anthropic front door
+        - OpenAI Responses front door
+        - Translation or streaming
+        - Docker or deployment
+        - Documentation
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Add links, logs, examples, or implementation notes. Redact secrets.
+      placeholder: Any extra context?
+    validations:
+      required: false
