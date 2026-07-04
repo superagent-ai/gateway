@@ -1,0 +1,116 @@
+# gateway.yaml
+#
+# Three ideas:
+#   models:    decide WHAT exists, once. Each entry is a model (or an ordered
+#              fallback chain of models) with the name you want to use.
+#   clients:   decide WHICH model serves which traffic per client.
+#   providers: only needed for endpoints the built-in presets don't know.
+#
+# The name you give a model is the id you use everywhere:
+# `claude --model <name>` and Codex's `model = "<name>"`.
+#
+# Secrets never live in this file: provider keys come from env vars
+# (auto-loaded from .env.local / .env), and any value here may reference an
+# env var with ${VAR} syntax.
+
+server:
+  bind: "127.0.0.1:4000"        # default; non-localhost requires a token
+  token: local-dev-token        # accepted as Bearer or x-api-key
+  # tokens: [token-a, token-b]  # multiple tokens
+  # token: "${GATEWAY_TOKEN}"   # or from the environment
+  # Env overrides (no config edit needed): GATEWAY_BIND, GATEWAY_TOKEN
+
+# Providers
+#
+# Built-in presets imply base URL + key env var — use them directly in model
+# strings with zero declaration here:
+#
+#   openrouter (OPENROUTER_API_KEY)   openai    (OPENAI_API_KEY)
+#   anthropic  (ANTHROPIC_API_KEY)    moonshot  (MOONSHOT_API_KEY)
+#   fireworks  (FIREWORKS_API_KEY)    together  (TOGETHER_API_KEY)
+#   groq       (GROQ_API_KEY)         deepinfra (DEEPINFRA_API_KEY)
+#   deepseek   (DEEPSEEK_API_KEY)     mistral   (MISTRAL_API_KEY)
+#   xai        (XAI_API_KEY)          cerebras  (CEREBRAS_API_KEY)
+#   ollama     (localhost:11434, no key)
+#   azure      (AZURE_AI_API_KEY, needs `resource:` below)
+#
+# Declare a provider only for custom endpoints or to override a preset.
+providers:
+  vllm-local:
+    base_url: "http://localhost:8000/v1"
+    api_key: dummy
+  # azure:
+  #   resource: my-foundry            # -> https://my-foundry.services.ai.azure.com/openai/v1
+  # my-anthropic-proxy:
+  #   type: anthropic                 # anthropic | openai (default: openai)
+  #   base_url: "https://proxy.example.com"
+  #   api_key_env: PROXY_API_KEY
+
+# Models
+#
+# Three forms:
+#   name: provider/model-id                single model
+#   name: [provider/a, provider/b]         fallback chain (see below)
+#   name: { model: ..., <overrides> }      long form, see qwen-local
+#                                          (model: also accepts a list —
+#                                          a chain with display name/overrides)
+#
+# Fallback: a list IS the fallback definition. The first entry is primary;
+# on connection failure, 429, or 5xx the next entry is tried, in order.
+# Fallback only happens before the response starts streaming — a model that
+# has begun answering (or calling a tool) is never silently swapped.
+# The `kimi` model below is an example: K2.7 primary, K2.6 fallback.
+#
+# Known model families (kimi, gpt, claude, ...) get capabilities from a
+# built-in quirk table — e.g. Kimi automatically drops temperature/top_p
+# (fixed by the API), keeps reasoning across tool turns, accepts images.
+models:
+  kimi: 
+    model: [openrouter/moonshotai/kimi-k2.7-code, openrouter/moonshotai/kimi-k2.6]
+    display_name: "Kimi K2.7 Code (fallback to K2.6)"
+  qwen-local:
+    model: vllm-local/qwen3-coder
+    # model: [vllm-local/qwen3-coder, openrouter/qwen/qwen3-coder]  # with fallback
+    display_name: "Qwen3 Coder (local)"
+    # images: false                   # vision on/off
+    # tools: openai                   # openai | native | none
+    # thinking: none                  # native | none (reasoning round-trip)
+    # cache_control: none             # native | none
+    # drop_params: [temperature]      # strip params the API rejects
+    # timeout_ms: 120000
+    # expose: [claude_code, codex]    # which clients may select it (default: all)
+
+# Clients
+#
+# Roles route traffic to models by name (or inline provider/model-id string):
+#   main:        the conversation model; a list is a fallback chain
+#   subagent:    Task-tool subagent requests            (default: unused)
+#   background:  cheap lane: titles, summaries          (default: unused)
+#   unknown:     where unrecognized model ids go — a role, a model, or
+#                "reject" to return 404                 (default: main)
+#
+# Roles may reference other roles (e.g. `subagent: main`).
+clients:
+  claude_code:
+    main: kimi
+    subagent: kimi
+    background: kimi
+  codex:
+    main: kimi
+
+# Retry tuning (defaults shown)
+#
+# WHICH models fall back to which is defined above in models: (a list is a
+# fallback chain). This section only tunes WHEN a failure counts as
+# retryable and how many attempts are made in total (the first entry is
+# retried once before moving down the chain).
+# fallback:
+#   max_attempts: 3
+#   retryable_statuses: [408, 429, 500, 502, 503, 504]
+
+# Telemetry (defaults shown)
+#
+# telemetry:
+#   log_prompts: false                # true logs full request bodies
+#   log_tool_calls: true
+#   redact_headers: [authorization, x-api-key]

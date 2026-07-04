@@ -1,0 +1,13 @@
+services:
+  gateway:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      # Provider keys referenced by the config (pass through from host/.env)
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # Optional: add a token without editing the config file
+      # GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+    volumes:
+      - ./gateway.yaml:/etc/gateway/gateway.yaml:ro
+    restart: unless-stopped
