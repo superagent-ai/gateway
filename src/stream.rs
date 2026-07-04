@@ -10,15 +10,40 @@ use std::collections::HashMap;
 /// Internal, protocol-neutral stream events (modeled on Anthropic's shape).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ev {
-    Start { id: String, input_tokens: u64 },
-    ThinkingStart { index: usize },
-    ThinkingDelta { index: usize, text: String },
-    TextStart { index: usize },
-    TextDelta { index: usize, text: String },
-    ToolStart { index: usize, id: String, name: String },
-    ArgsDelta { index: usize, json: String },
-    BlockStop { index: usize },
-    Finish { stop_reason: String, output_tokens: u64 },
+    Start {
+        id: String,
+        input_tokens: u64,
+    },
+    ThinkingStart {
+        index: usize,
+    },
+    ThinkingDelta {
+        index: usize,
+        text: String,
+    },
+    TextStart {
+        index: usize,
+    },
+    TextDelta {
+        index: usize,
+        text: String,
+    },
+    ToolStart {
+        index: usize,
+        id: String,
+        name: String,
+    },
+    ArgsDelta {
+        index: usize,
+        json: String,
+    },
+    BlockStop {
+        index: usize,
+    },
+    Finish {
+        stop_reason: String,
+        output_tokens: u64,
+    },
     Done,
 }
 
@@ -36,9 +61,10 @@ impl StreamPhase {
     pub fn advance(&mut self, ev: &Ev) {
         *self = match ev {
             Ev::Start { .. } => Self::MessageStarted,
-            Ev::TextStart { .. } | Ev::TextDelta { .. } | Ev::ThinkingStart { .. } | Ev::ThinkingDelta { .. } => {
-                Self::TextStarted
-            }
+            Ev::TextStart { .. }
+            | Ev::TextDelta { .. }
+            | Ev::ThinkingStart { .. }
+            | Ev::ThinkingDelta { .. } => Self::TextStarted,
             Ev::ToolStart { .. } | Ev::ArgsDelta { .. } => Self::ToolUseStarted,
             Ev::BlockStop { .. } if *self == Self::ToolUseStarted => Self::ToolUseCompleted,
             Ev::Done => Self::Done,
@@ -64,7 +90,8 @@ pub struct SseParser {
 
 impl SseParser {
     pub fn push(&mut self, chunk: &[u8]) -> Vec<SseEvent> {
-        self.buf.push_str(&String::from_utf8_lossy(chunk).replace("\r\n", "\n"));
+        self.buf
+            .push_str(&String::from_utf8_lossy(chunk).replace("\r\n", "\n"));
         let mut out = Vec::new();
         while let Some(pos) = self.buf.find("\n\n") {
             let block: String = self.buf.drain(..pos + 2).collect();
@@ -77,7 +104,10 @@ impl SseParser {
                 }
             }
             if !data.is_empty() {
-                out.push(SseEvent { event, data: data.join("\n") });
+                out.push(SseEvent {
+                    event,
+                    data: data.join("\n"),
+                });
             }
         }
         out
@@ -109,7 +139,9 @@ pub struct AnthropicParser;
 
 impl EventParser for AnthropicParser {
     fn on_sse(&mut self, e: &SseEvent) -> Vec<Ev> {
-        let Ok(v) = serde_json::from_str::<Value>(&e.data) else { return vec![] };
+        let Ok(v) = serde_json::from_str::<Value>(&e.data) else {
+            return vec![];
+        };
         let index = v["index"].as_u64().unwrap_or(0) as usize;
         match v["type"].as_str().unwrap_or("") {
             "message_start" => vec![Ev::Start {
@@ -127,12 +159,21 @@ impl EventParser for AnthropicParser {
                 _ => vec![],
             },
             "content_block_delta" => match v["delta"]["type"].as_str() {
-                Some("text_delta") => vec![Ev::TextDelta { index, text: s(&v["delta"], "text") }],
+                Some("text_delta") => vec![Ev::TextDelta {
+                    index,
+                    text: s(&v["delta"], "text"),
+                }],
                 Some("input_json_delta") => {
-                    vec![Ev::ArgsDelta { index, json: s(&v["delta"], "partial_json") }]
+                    vec![Ev::ArgsDelta {
+                        index,
+                        json: s(&v["delta"], "partial_json"),
+                    }]
                 }
                 Some("thinking_delta") => {
-                    vec![Ev::ThinkingDelta { index, text: s(&v["delta"], "thinking") }]
+                    vec![Ev::ThinkingDelta {
+                        index,
+                        text: s(&v["delta"], "thinking"),
+                    }]
                 }
                 _ => vec![],
             },
@@ -196,13 +237,20 @@ impl EventParser for ChatParser {
             out.push(Ev::Done);
             return out;
         }
-        let Ok(v) = serde_json::from_str::<Value>(&e.data) else { return out };
+        let Ok(v) = serde_json::from_str::<Value>(&e.data) else {
+            return out;
+        };
         if !self.started {
             self.started = true;
-            out.push(Ev::Start { id: s(&v, "id"), input_tokens: 0 });
+            out.push(Ev::Start {
+                id: s(&v, "id"),
+                input_tokens: 0,
+            });
         }
         if let Some(u) = v.get("usage").filter(|u| !u.is_null()) {
-            self.output_tokens = u["completion_tokens"].as_u64().unwrap_or(self.output_tokens);
+            self.output_tokens = u["completion_tokens"]
+                .as_u64()
+                .unwrap_or(self.output_tokens);
         }
         let choice = &v["choices"][0];
         if let Some(fr) = choice["finish_reason"].as_str() {
@@ -223,23 +271,33 @@ impl EventParser for ChatParser {
             .filter(|t| !t.is_empty());
         if let Some(text) = reasoning {
             match self.open {
-                Some((idx, BlockKind::Thinking)) => {
-                    out.push(Ev::ThinkingDelta { index: idx, text: text.into() })
-                }
+                Some((idx, BlockKind::Thinking)) => out.push(Ev::ThinkingDelta {
+                    index: idx,
+                    text: text.into(),
+                }),
                 _ => {
                     let idx = self.open_block(BlockKind::Thinking, &mut out);
                     out.push(Ev::ThinkingStart { index: idx });
-                    out.push(Ev::ThinkingDelta { index: idx, text: text.into() });
+                    out.push(Ev::ThinkingDelta {
+                        index: idx,
+                        text: text.into(),
+                    });
                 }
             }
         }
         if let Some(text) = delta["content"].as_str().filter(|t| !t.is_empty()) {
             match self.open {
-                Some((idx, BlockKind::Text)) => out.push(Ev::TextDelta { index: idx, text: text.into() }),
+                Some((idx, BlockKind::Text)) => out.push(Ev::TextDelta {
+                    index: idx,
+                    text: text.into(),
+                }),
                 _ => {
                     let idx = self.open_block(BlockKind::Text, &mut out);
                     out.push(Ev::TextStart { index: idx });
-                    out.push(Ev::TextDelta { index: idx, text: text.into() });
+                    out.push(Ev::TextDelta {
+                        index: idx,
+                        text: text.into(),
+                    });
                 }
             }
         }
@@ -254,12 +312,22 @@ impl EventParser for ChatParser {
                     let id = Some(s(tc, "id"))
                         .filter(|i| !i.is_empty())
                         .unwrap_or_else(|| format!("toolu_{}", uuid::Uuid::new_v4().simple()));
-                    out.push(Ev::ToolStart { index: idx, id, name: s(&tc["function"], "name") });
+                    out.push(Ev::ToolStart {
+                        index: idx,
+                        id,
+                        name: s(&tc["function"], "name"),
+                    });
                     idx
                 }
             };
-            if let Some(args) = tc["function"]["arguments"].as_str().filter(|a| !a.is_empty()) {
-                out.push(Ev::ArgsDelta { index: idx, json: args.into() });
+            if let Some(args) = tc["function"]["arguments"]
+                .as_str()
+                .filter(|a| !a.is_empty())
+            {
+                out.push(Ev::ArgsDelta {
+                    index: idx,
+                    json: args.into(),
+                });
             }
         }
         out
@@ -278,7 +346,10 @@ pub struct AnthropicRenderer {
 
 impl AnthropicRenderer {
     pub fn new(alias: String) -> Self {
-        Self { alias, thinking_blocks: Default::default() }
+        Self {
+            alias,
+            thinking_blocks: Default::default(),
+        }
     }
 }
 
@@ -305,7 +376,10 @@ impl EventRenderer for AnthropicRenderer {
                     &json!({"type": "content_block_delta", "index": index,
                             "delta": {"type": "signature_delta", "signature": ""}}),
                 ),
-                frame("content_block_stop", &json!({"type": "content_block_stop", "index": index})),
+                frame(
+                    "content_block_stop",
+                    &json!({"type": "content_block_stop", "index": index})
+                ),
             ),
             Ev::Start { id, input_tokens } => frame(
                 "message_start",
@@ -336,10 +410,14 @@ impl EventRenderer for AnthropicRenderer {
                 &json!({"type": "content_block_delta", "index": index,
                         "delta": {"type": "input_json_delta", "partial_json": json}}),
             ),
-            Ev::BlockStop { index } => {
-                frame("content_block_stop", &json!({"type": "content_block_stop", "index": index}))
-            }
-            Ev::Finish { stop_reason, output_tokens } => frame(
+            Ev::BlockStop { index } => frame(
+                "content_block_stop",
+                &json!({"type": "content_block_stop", "index": index}),
+            ),
+            Ev::Finish {
+                stop_reason,
+                output_tokens,
+            } => frame(
                 "message_delta",
                 &json!({"type": "message_delta",
                         "delta": {"stop_reason": stop_reason, "stop_sequence": null},
@@ -422,11 +500,18 @@ impl EventRenderer for ResponsesRenderer {
             Ev::Start { id, input_tokens } => {
                 self.response_id = format!(
                     "resp_{}",
-                    if id.is_empty() { uuid::Uuid::new_v4().simple().to_string() } else { id.clone() }
+                    if id.is_empty() {
+                        uuid::Uuid::new_v4().simple().to_string()
+                    } else {
+                        id.clone()
+                    }
                 );
                 self.input_tokens = *input_tokens;
                 let env = self.response_envelope("in_progress", false);
-                Some(self.emit("response.created", json!({"type": "response.created", "response": env})))
+                Some(self.emit(
+                    "response.created",
+                    json!({"type": "response.created", "response": env}),
+                ))
             }
             Ev::TextStart { index } => {
                 let item_id = format!("msg_{}", uuid::Uuid::new_v4().simple());
@@ -445,7 +530,14 @@ impl EventRenderer for ResponsesRenderer {
                 ));
                 self.items.insert(
                     *index,
-                    ItemState { item_id, output_index, is_tool: false, name: String::new(), call_id: String::new(), acc: String::new() },
+                    ItemState {
+                        item_id,
+                        output_index,
+                        is_tool: false,
+                        name: String::new(),
+                        call_id: String::new(),
+                        acc: String::new(),
+                    },
                 );
                 Some(out)
             }
@@ -470,7 +562,14 @@ impl EventRenderer for ResponsesRenderer {
                 );
                 self.items.insert(
                     *index,
-                    ItemState { item_id, output_index, is_tool: true, name: name.clone(), call_id: id.clone(), acc: String::new() },
+                    ItemState {
+                        item_id,
+                        output_index,
+                        is_tool: true,
+                        name: name.clone(),
+                        call_id: id.clone(),
+                        acc: String::new(),
+                    },
                 );
                 Some(out)
             }
@@ -518,15 +617,25 @@ impl EventRenderer for ResponsesRenderer {
                 self.completed_items.push(done_item);
                 Some(out)
             }
-            Ev::Finish { stop_reason, output_tokens } => {
+            Ev::Finish {
+                stop_reason,
+                output_tokens,
+            } => {
                 self.stop_reason = stop_reason.clone();
                 self.output_tokens = *output_tokens;
                 None
             }
             Ev::Done => {
-                let status = if self.stop_reason == "max_tokens" { "incomplete" } else { "completed" };
+                let status = if self.stop_reason == "max_tokens" {
+                    "incomplete"
+                } else {
+                    "completed"
+                };
                 let env = self.response_envelope(status, true);
-                Some(self.emit("response.completed", json!({"type": "response.completed", "response": env})))
+                Some(self.emit(
+                    "response.completed",
+                    json!({"type": "response.completed", "response": env}),
+                ))
             }
             // Reasoning is not surfaced to Codex in the MVP subset.
             Ev::ThinkingStart { .. } | Ev::ThinkingDelta { .. } => None,
@@ -564,7 +673,12 @@ mod tests {
         let mut sp = SseParser::default();
         sp.push(out.as_bytes())
             .into_iter()
-            .map(|e| (e.event.unwrap_or_default(), serde_json::from_str(&e.data).unwrap()))
+            .map(|e| {
+                (
+                    e.event.unwrap_or_default(),
+                    serde_json::from_str(&e.data).unwrap(),
+                )
+            })
             .collect()
     }
 
@@ -583,13 +697,19 @@ mod tests {
         assert_eq!(frames[0].0, "message_start");
         assert_eq!(frames[0].1["message"]["model"], "claude-gpt-coder");
         let text_delta = find(&frames, "content_block_delta");
-        assert_eq!(text_delta["delta"], json!({"type": "text_delta", "text": "Let me check."}));
+        assert_eq!(
+            text_delta["delta"],
+            json!({"type": "text_delta", "text": "Let me check."})
+        );
         let tool_start = frames
             .iter()
             .find(|(e, v)| e == "content_block_start" && v["content_block"]["type"] == "tool_use")
             .map(|(_, v)| v)
             .unwrap();
-        assert_eq!(tool_start["content_block"], json!({"type": "tool_use", "id": "call_9", "name": "bash", "input": {}}));
+        assert_eq!(
+            tool_start["content_block"],
+            json!({"type": "tool_use", "id": "call_9", "name": "bash", "input": {}})
+        );
         let args = frames
             .iter()
             .find(|(_, v)| v["delta"]["type"] == "input_json_delta")
@@ -602,10 +722,15 @@ mod tests {
         assert_eq!(frames.last().unwrap().0, "message_stop");
         // text block closed before tool block opened
         let events: Vec<&str> = frames.iter().map(|(e, _)| e.as_str()).collect();
-        let close = events.iter().position(|e| *e == "content_block_stop").unwrap();
+        let close = events
+            .iter()
+            .position(|e| *e == "content_block_stop")
+            .unwrap();
         let tool_open = frames
             .iter()
-            .position(|(e, v)| e == "content_block_start" && v["content_block"]["type"] == "tool_use")
+            .position(|(e, v)| {
+                e == "content_block_start" && v["content_block"]["type"] == "tool_use"
+            })
             .unwrap();
         assert!(close < tool_open);
     }
@@ -635,10 +760,19 @@ mod tests {
         assert!(out.contains(r#""call_id":"toolu_123""#));
         assert!(out.contains("event: response.completed\n"));
         // final response carries both output items and usage
-        let completed = out.split("event: response.completed\ndata: ").nth(1).unwrap();
+        let completed = out
+            .split("event: response.completed\ndata: ")
+            .nth(1)
+            .unwrap();
         let v: Value = serde_json::from_str(completed.trim()).unwrap();
-        assert_eq!(v["response"]["output"][0]["content"][0]["text"], "Running tests.");
-        assert_eq!(v["response"]["output"][1]["arguments"], "{\"cmd\":\"npm test\"}");
+        assert_eq!(
+            v["response"]["output"][0]["content"][0]["text"],
+            "Running tests."
+        );
+        assert_eq!(
+            v["response"]["output"][1]["arguments"],
+            "{\"cmd\":\"npm test\"}"
+        );
         assert_eq!(v["response"]["usage"]["total_tokens"], 28);
         assert_eq!(v["response"]["model"], "claude-sonnet");
     }
@@ -661,13 +795,26 @@ mod tests {
         let frames = parse_frames(&out);
         let think_start = find(&frames, "content_block_start");
         assert_eq!(think_start["content_block"]["type"], "thinking");
-        let deltas: Vec<&Value> =
-            frames.iter().filter(|(e, _)| e == "content_block_delta").map(|(_, v)| v).collect();
-        assert_eq!(deltas[0]["delta"], json!({"type": "thinking_delta", "thinking": "thinking hard"}));
-        assert_eq!(deltas[1]["delta"], json!({"type": "thinking_delta", "thinking": " about tests"}));
+        let deltas: Vec<&Value> = frames
+            .iter()
+            .filter(|(e, _)| e == "content_block_delta")
+            .map(|(_, v)| v)
+            .collect();
+        assert_eq!(
+            deltas[0]["delta"],
+            json!({"type": "thinking_delta", "thinking": "thinking hard"})
+        );
+        assert_eq!(
+            deltas[1]["delta"],
+            json!({"type": "thinking_delta", "thinking": " about tests"})
+        );
         // thinking block closed with a signature_delta, then text block follows
-        assert!(deltas.iter().any(|d| d["delta"]["type"] == "signature_delta"));
-        assert!(deltas.iter().any(|d| d["delta"] == json!({"type": "text_delta", "text": "Done."})));
+        assert!(deltas
+            .iter()
+            .any(|d| d["delta"]["type"] == "signature_delta"));
+        assert!(deltas
+            .iter()
+            .any(|d| d["delta"] == json!({"type": "text_delta", "text": "Done."})));
         assert_eq!(frames.last().unwrap().0, "message_stop");
     }
 
@@ -686,9 +833,16 @@ mod tests {
     #[test]
     fn phase_tracks_fallback_boundary() {
         let mut phase = StreamPhase::NotStarted;
-        phase.advance(&Ev::Start { id: "x".into(), input_tokens: 0 });
+        phase.advance(&Ev::Start {
+            id: "x".into(),
+            input_tokens: 0,
+        });
         assert_eq!(phase, StreamPhase::MessageStarted);
-        phase.advance(&Ev::ToolStart { index: 0, id: "t".into(), name: "bash".into() });
+        phase.advance(&Ev::ToolStart {
+            index: 0,
+            id: "t".into(),
+            name: "bash".into(),
+        });
         assert_eq!(phase, StreamPhase::ToolUseStarted);
         phase.advance(&Ev::BlockStop { index: 0 });
         assert_eq!(phase, StreamPhase::ToolUseCompleted);

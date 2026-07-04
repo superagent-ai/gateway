@@ -29,7 +29,11 @@ async fn serve(router: Router) -> String {
 }
 
 fn sse_body(frames: &str) -> Response {
-    ([(axum::http::header::CONTENT_TYPE, "text/event-stream")], frames.to_string()).into_response()
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+        frames.to_string(),
+    )
+        .into_response()
 }
 
 async fn mock_anthropic_handler(
@@ -157,7 +161,12 @@ clients:
     );
     let cfg = gateway::schema::load(&yaml).unwrap();
     let gateway = serve(gateway::http::build_router(cfg)).await;
-    TestEnv { gateway, anthropic, openai, client: reqwest::Client::new() }
+    TestEnv {
+        gateway,
+        anthropic,
+        openai,
+        client: reqwest::Client::new(),
+    }
 }
 
 fn auth(rb: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -167,16 +176,19 @@ fn auth(rb: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
 #[tokio::test]
 async fn claude_code_text_to_anthropic_passthrough() {
     let env = setup().await;
-    let resp = auth(env.client.post(format!("{}/anthropic/v1/messages", env.gateway)))
-        .header("anthropic-version", "2023-06-01")
-        .header("anthropic-beta", "context-1m-2025-08-07")
-        .json(&json!({
-            "model": "sonnet", "max_tokens": 100,
-            "messages": [{"role": "user", "content": "hello"}]
-        }))
-        .send()
-        .await
-        .unwrap();
+    let resp = auth(
+        env.client
+            .post(format!("{}/anthropic/v1/messages", env.gateway)),
+    )
+    .header("anthropic-version", "2023-06-01")
+    .header("anthropic-beta", "context-1m-2025-08-07")
+    .json(&json!({
+        "model": "sonnet", "max_tokens": 100,
+        "messages": [{"role": "user", "content": "hello"}]
+    }))
+    .send()
+    .await
+    .unwrap();
     assert_eq!(resp.status(), 200);
     let body: Value = resp.json().await.unwrap();
     assert_eq!(body["content"][0]["text"], "Hello from Anthropic mock");
@@ -185,7 +197,10 @@ async fn claude_code_text_to_anthropic_passthrough() {
     let sent = env.anthropic.last_body.lock().unwrap().clone().unwrap();
     assert_eq!(sent["model"], "claude-sonnet-4-6");
     let headers = env.anthropic.last_headers.lock().unwrap().clone().unwrap();
-    assert_eq!(headers.get("anthropic-beta").unwrap(), "context-1m-2025-08-07");
+    assert_eq!(
+        headers.get("anthropic-beta").unwrap(),
+        "context-1m-2025-08-07"
+    );
     assert_eq!(headers.get("x-api-key").unwrap(), "upstream-key");
 }
 
@@ -219,49 +234,69 @@ async fn claude_code_tools_to_openai_compatible() {
 #[tokio::test]
 async fn codex_text_to_anthropic() {
     let env = setup().await;
-    let resp = auth(env.client.post(format!("{}/openai/v1/responses", env.gateway)))
-        .json(&json!({
-            "model": "sonnet",
-            "input": [{"role": "user", "content": "Fix the failing test"}]
-        }))
-        .send()
-        .await
-        .unwrap();
+    let resp = auth(
+        env.client
+            .post(format!("{}/openai/v1/responses", env.gateway)),
+    )
+    .json(&json!({
+        "model": "sonnet",
+        "input": [{"role": "user", "content": "Fix the failing test"}]
+    }))
+    .send()
+    .await
+    .unwrap();
     assert_eq!(resp.status(), 200);
     let body: Value = resp.json().await.unwrap();
     assert_eq!(body["object"], "response");
     assert_eq!(body["status"], "completed");
-    assert_eq!(body["output"][0]["content"][0]["text"], "Hello from Anthropic mock");
+    assert_eq!(
+        body["output"][0]["content"][0]["text"],
+        "Hello from Anthropic mock"
+    );
     assert_eq!(body["usage"]["total_tokens"], 16);
 
     // upstream received Anthropic Messages shape
     let sent = env.anthropic.last_body.lock().unwrap().clone().unwrap();
     assert_eq!(sent["model"], "claude-sonnet-4-6");
-    assert_eq!(sent["messages"][0]["content"][0]["text"], "Fix the failing test");
+    assert_eq!(
+        sent["messages"][0]["content"][0]["text"],
+        "Fix the failing test"
+    );
     assert_eq!(sent["max_tokens"], 8192);
 }
 
 #[tokio::test]
 async fn codex_streaming_function_call_from_anthropic() {
     let env = setup().await;
-    let resp = auth(env.client.post(format!("{}/openai/v1/responses", env.gateway)))
-        .json(&json!({
-            "model": "main", "stream": true,
-            "input": [{"role": "user", "content": "run tests"}],
-            "tools": [{"type": "function", "name": "bash", "parameters": {"type": "object"}}]
-        }))
-        .send()
-        .await
-        .unwrap();
+    let resp = auth(
+        env.client
+            .post(format!("{}/openai/v1/responses", env.gateway)),
+    )
+    .json(&json!({
+        "model": "main", "stream": true,
+        "input": [{"role": "user", "content": "run tests"}],
+        "tools": [{"type": "function", "name": "bash", "parameters": {"type": "object"}}]
+    }))
+    .send()
+    .await
+    .unwrap();
     assert_eq!(resp.status(), 200);
-    assert!(resp.headers()["content-type"].to_str().unwrap().starts_with("text/event-stream"));
+    assert!(resp.headers()["content-type"]
+        .to_str()
+        .unwrap()
+        .starts_with("text/event-stream"));
     let text = resp.text().await.unwrap();
     assert!(text.contains("event: response.created"));
     assert!(text.contains("event: response.output_item.added"));
     assert!(text.contains("event: response.function_call_arguments.delta"));
     assert!(text.contains("event: response.completed"));
-    let completed: Value =
-        serde_json::from_str(text.split("event: response.completed\ndata: ").nth(1).unwrap().trim()).unwrap();
+    let completed: Value = serde_json::from_str(
+        text.split("event: response.completed\ndata: ")
+            .nth(1)
+            .unwrap()
+            .trim(),
+    )
+    .unwrap();
     let fc = &completed["response"]["output"][0];
     assert_eq!(fc["type"], "function_call");
     assert_eq!(fc["call_id"], "toolu_123");
@@ -281,7 +316,11 @@ async fn retryable_status_before_stream_falls_back() {
         .await
         .unwrap();
     assert_eq!(resp.status(), 200);
-    assert_eq!(env.anthropic.calls.load(Ordering::SeqCst), 2, "expected retry after 429");
+    assert_eq!(
+        env.anthropic.calls.load(Ordering::SeqCst),
+        2,
+        "expected retry after 429"
+    );
     let body: Value = resp.json().await.unwrap();
     assert_eq!(body["content"][0]["text"], "Hello from Anthropic mock");
 }
@@ -314,20 +353,30 @@ async fn stream_failure_after_output_does_not_fall_back() {
         "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
         "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"partial\"}}\n\n",
     ).to_string());
-    let resp = auth(env.client.post(format!("{}/openai/v1/responses", env.gateway)))
-        .json(&json!({
-            "model": "sonnet", "stream": true,
-            "input": [{"role": "user", "content": "hello"}]
-        }))
-        .send()
-        .await
-        .unwrap();
+    let resp = auth(
+        env.client
+            .post(format!("{}/openai/v1/responses", env.gateway)),
+    )
+    .json(&json!({
+        "model": "sonnet", "stream": true,
+        "input": [{"role": "user", "content": "hello"}]
+    }))
+    .send()
+    .await
+    .unwrap();
     assert_eq!(resp.status(), 200);
     let text = resp.text().await.unwrap();
-    assert!(text.contains("\"delta\":\"partial\""), "partial output relayed");
+    assert!(
+        text.contains("\"delta\":\"partial\""),
+        "partial output relayed"
+    );
     assert!(text.contains("event: error"), "error surfaced to client");
     assert!(!text.contains("event: response.completed"));
-    assert_eq!(env.anthropic.calls.load(Ordering::SeqCst), 1, "no fallback after user-visible output");
+    assert_eq!(
+        env.anthropic.calls.load(Ordering::SeqCst),
+        1,
+        "no fallback after user-visible output"
+    );
 }
 
 #[tokio::test]
@@ -367,13 +416,27 @@ async fn models_filtered_per_client_and_auth_enforced() {
     let get_ids = |url: String| {
         let client = env.client.clone();
         async move {
-            let v: Value = auth(client.get(url)).send().await.unwrap().json().await.unwrap();
-            v["data"].as_array().unwrap().iter().map(|m| m["id"].as_str().unwrap().to_string()).collect::<Vec<_>>()
+            let v: Value = auth(client.get(url))
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+            v["data"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| m["id"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
         }
     };
     let claude_ids = get_ids(format!("{}/anthropic/v1/models", env.gateway)).await;
     assert!(claude_ids.contains(&"sonnet".to_string()));
-    assert!(!claude_ids.contains(&"codex-only".to_string()), "blocked model hidden from Claude Code");
+    assert!(
+        !claude_ids.contains(&"codex-only".to_string()),
+        "blocked model hidden from Claude Code"
+    );
     let codex_ids = get_ids(format!("{}/openai/v1/models", env.gateway)).await;
     assert!(codex_ids.contains(&"codex-only".to_string()));
 
@@ -391,14 +454,17 @@ async fn models_filtered_per_client_and_auth_enforced() {
 #[tokio::test]
 async fn count_tokens_estimates_for_openai_route() {
     let env = setup().await;
-    let resp = auth(env.client.post(format!("{}/v1/messages/count_tokens", env.gateway)))
-        .json(&json!({
-            "model": "gpt-coder",
-            "messages": [{"role": "user", "content": "some prompt text to count"}]
-        }))
-        .send()
-        .await
-        .unwrap();
+    let resp = auth(
+        env.client
+            .post(format!("{}/v1/messages/count_tokens", env.gateway)),
+    )
+    .json(&json!({
+        "model": "gpt-coder",
+        "messages": [{"role": "user", "content": "some prompt text to count"}]
+    }))
+    .send()
+    .await
+    .unwrap();
     assert_eq!(resp.status(), 200);
     let body: Value = resp.json().await.unwrap();
     assert!(body["input_tokens"].as_u64().unwrap() > 0);
@@ -420,8 +486,10 @@ async fn capability_mismatch_returns_protocol_shaped_error() {
     // Claude Code background tasks pin claude-haiku-* ids -> background role
     // (sonnet -> anthropic mock)
     let resp = auth(env.client.post(format!("{}/v1/messages", env.gateway)))
-        .json(&json!({"model": "claude-haiku-4-5-20260101", "max_tokens": 10,
-                       "messages": [{"role": "user", "content": "hello"}]}))
+        .json(
+            &json!({"model": "claude-haiku-4-5-20260101", "max_tokens": 10,
+                       "messages": [{"role": "user", "content": "hello"}]}),
+        )
         .send()
         .await
         .unwrap();
@@ -438,14 +506,20 @@ async fn capability_mismatch_returns_protocol_shaped_error() {
         .await
         .unwrap();
     assert_eq!(resp.status(), 200);
-    assert_eq!(env.openai.calls.load(Ordering::SeqCst), openai_calls_before + 1);
+    assert_eq!(
+        env.openai.calls.load(Ordering::SeqCst),
+        openai_calls_before + 1
+    );
 
     // codex has `unknown: reject`, so unrecognized ids 404 instead of routing
-    let resp = auth(env.client.post(format!("{}/openai/v1/responses", env.gateway)))
-        .json(&json!({"model": "nope", "input": "x"}))
-        .send()
-        .await
-        .unwrap();
+    let resp = auth(
+        env.client
+            .post(format!("{}/openai/v1/responses", env.gateway)),
+    )
+    .json(&json!({"model": "nope", "input": "x"}))
+    .send()
+    .await
+    .unwrap();
     assert_eq!(resp.status(), 404);
     let body: Value = resp.json().await.unwrap();
     assert!(body["error"]["message"].as_str().unwrap().contains("nope"));
@@ -454,8 +528,21 @@ async fn capability_mismatch_returns_protocol_shaped_error() {
 #[tokio::test]
 async fn health_endpoints() {
     let env = setup().await;
-    let v: Value = env.client.get(format!("{}/health", env.gateway)).send().await.unwrap().json().await.unwrap();
+    let v: Value = env
+        .client
+        .get(format!("{}/health", env.gateway))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     assert_eq!(v["status"], "ok");
-    let head = env.client.head(format!("{}/", env.gateway)).send().await.unwrap();
+    let head = env
+        .client
+        .head(format!("{}/", env.gateway))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(head.status(), 200);
 }

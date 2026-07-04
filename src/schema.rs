@@ -155,20 +155,68 @@ impl RoleValue {
 fn provider_preset(name: &str) -> Option<(ProviderKind, Option<&'static str>, &'static str)> {
     use ProviderKind::{Anthropic, OpenaiCompatible};
     match name {
-        "openrouter" => Some((OpenaiCompatible, Some("https://openrouter.ai/api/v1"), "OPENROUTER_API_KEY")),
-        "openai" => Some((OpenaiCompatible, Some("https://api.openai.com/v1"), "OPENAI_API_KEY")),
-        "anthropic" => Some((Anthropic, Some("https://api.anthropic.com"), "ANTHROPIC_API_KEY")),
-        "moonshot" => Some((OpenaiCompatible, Some("https://api.moonshot.ai/v1"), "MOONSHOT_API_KEY")),
-        "fireworks" => Some((OpenaiCompatible, Some("https://api.fireworks.ai/inference/v1"), "FIREWORKS_API_KEY")),
-        "together" => Some((OpenaiCompatible, Some("https://api.together.xyz/v1"), "TOGETHER_API_KEY")),
-        "groq" => Some((OpenaiCompatible, Some("https://api.groq.com/openai/v1"), "GROQ_API_KEY")),
-        "deepinfra" => Some((OpenaiCompatible, Some("https://api.deepinfra.com/v1/openai"), "DEEPINFRA_API_KEY")),
-        "deepseek" => Some((OpenaiCompatible, Some("https://api.deepseek.com/v1"), "DEEPSEEK_API_KEY")),
-        "mistral" => Some((OpenaiCompatible, Some("https://api.mistral.ai/v1"), "MISTRAL_API_KEY")),
+        "openrouter" => Some((
+            OpenaiCompatible,
+            Some("https://openrouter.ai/api/v1"),
+            "OPENROUTER_API_KEY",
+        )),
+        "openai" => Some((
+            OpenaiCompatible,
+            Some("https://api.openai.com/v1"),
+            "OPENAI_API_KEY",
+        )),
+        "anthropic" => Some((
+            Anthropic,
+            Some("https://api.anthropic.com"),
+            "ANTHROPIC_API_KEY",
+        )),
+        "moonshot" => Some((
+            OpenaiCompatible,
+            Some("https://api.moonshot.ai/v1"),
+            "MOONSHOT_API_KEY",
+        )),
+        "fireworks" => Some((
+            OpenaiCompatible,
+            Some("https://api.fireworks.ai/inference/v1"),
+            "FIREWORKS_API_KEY",
+        )),
+        "together" => Some((
+            OpenaiCompatible,
+            Some("https://api.together.xyz/v1"),
+            "TOGETHER_API_KEY",
+        )),
+        "groq" => Some((
+            OpenaiCompatible,
+            Some("https://api.groq.com/openai/v1"),
+            "GROQ_API_KEY",
+        )),
+        "deepinfra" => Some((
+            OpenaiCompatible,
+            Some("https://api.deepinfra.com/v1/openai"),
+            "DEEPINFRA_API_KEY",
+        )),
+        "deepseek" => Some((
+            OpenaiCompatible,
+            Some("https://api.deepseek.com/v1"),
+            "DEEPSEEK_API_KEY",
+        )),
+        "mistral" => Some((
+            OpenaiCompatible,
+            Some("https://api.mistral.ai/v1"),
+            "MISTRAL_API_KEY",
+        )),
         "xai" => Some((OpenaiCompatible, Some("https://api.x.ai/v1"), "XAI_API_KEY")),
-        "cerebras" => Some((OpenaiCompatible, Some("https://api.cerebras.ai/v1"), "CEREBRAS_API_KEY")),
+        "cerebras" => Some((
+            OpenaiCompatible,
+            Some("https://api.cerebras.ai/v1"),
+            "CEREBRAS_API_KEY",
+        )),
         // Local runtime; no key required (env is checked but may be unset).
-        "ollama" => Some((OpenaiCompatible, Some("http://localhost:11434/v1"), "OLLAMA_API_KEY")),
+        "ollama" => Some((
+            OpenaiCompatible,
+            Some("http://localhost:11434/v1"),
+            "OLLAMA_API_KEY",
+        )),
         // Azure AI Foundry's OpenAI-compatible endpoint; needs `resource`.
         "azure" => Some((OpenaiCompatible, None, "AZURE_AI_API_KEY")),
         _ => None,
@@ -189,8 +237,14 @@ fn resolve_provider(name: &str, entry: Option<&ProviderEntry>) -> Result<Resolve
     let kind = match e.kind.as_deref() {
         Some("anthropic") => ProviderKind::Anthropic,
         Some("openai") => ProviderKind::OpenaiCompatible,
-        Some(other) => return Err(format!("provider '{name}': unknown type '{other}' (use anthropic|openai)")),
-        None => preset.map(|(k, _, _)| k).unwrap_or(ProviderKind::OpenaiCompatible),
+        Some(other) => {
+            return Err(format!(
+                "provider '{name}': unknown type '{other}' (use anthropic|openai)"
+            ))
+        }
+        None => preset
+            .map(|(k, _, _)| k)
+            .unwrap_or(ProviderKind::OpenaiCompatible),
     };
     let base_url = e
         .base_url
@@ -207,10 +261,19 @@ fn resolve_provider(name: &str, entry: Option<&ProviderEntry>) -> Result<Resolve
         .ok_or_else(|| {
             format!("provider '{name}' is not a known preset; declare it under `providers:` with a base_url")
         })?;
-    let api_key_env = e
-        .api_key_env
-        .or_else(|| if e.api_key.is_none() { preset.map(|(_, _, env)| env.to_string()) } else { None });
-    Ok(ResolvedProvider { kind, base_url, api_key: e.api_key, api_key_env })
+    let api_key_env = e.api_key_env.or_else(|| {
+        if e.api_key.is_none() {
+            preset.map(|(_, _, env)| env.to_string())
+        } else {
+            None
+        }
+    });
+    Ok(ResolvedProvider {
+        kind,
+        base_url,
+        api_key: e.api_key,
+        api_key_env,
+    })
 }
 
 struct Quirks {
@@ -305,7 +368,11 @@ fn pretty_model_name(id: &str) -> String {
 }
 
 impl FileConfig {
-    fn resolve_single(&self, spec: &str, long: Option<&ModelLong>) -> Result<ResolvedModel, String> {
+    fn resolve_single(
+        &self,
+        spec: &str,
+        long: Option<&ModelLong>,
+    ) -> Result<ResolvedModel, String> {
         let (provider_name, model_id) = spec
             .split_once('/')
             .ok_or_else(|| format!("expected 'provider/model-id', got '{spec}'"))?;
@@ -322,14 +389,18 @@ impl FileConfig {
                 api_key: provider.api_key,
                 api_key_env: provider.api_key_env,
                 timeout_ms: long.and_then(|l| l.timeout_ms).unwrap_or(q.timeout_ms),
-                drop_params: long.and_then(|l| l.drop_params.clone()).unwrap_or(q.drop_params),
+                drop_params: long
+                    .and_then(|l| l.drop_params.clone())
+                    .unwrap_or(q.drop_params),
                 capabilities: RouteCapabilities {
                     text: true,
                     tools: long.and_then(|l| l.tools).unwrap_or(q.tools),
                     images: long.and_then(|l| l.images).unwrap_or(q.images),
                     streaming: None,
                     thinking: long.and_then(|l| l.thinking).unwrap_or(q.thinking),
-                    cache_control: long.and_then(|l| l.cache_control).unwrap_or(q.cache_control),
+                    cache_control: long
+                        .and_then(|l| l.cache_control)
+                        .unwrap_or(q.cache_control),
                 },
             },
         })
@@ -345,13 +416,16 @@ impl FileConfig {
             }
             match entry {
                 ModelEntry::Short(s) => {
-                    let m = self.resolve_single(s, None).map_err(|e| format!("model '{name}': {e}"))?;
+                    let m = self
+                        .resolve_single(s, None)
+                        .map_err(|e| format!("model '{name}': {e}"))?;
                     resolved.insert(name.clone(), m);
                 }
                 ModelEntry::Long(l) => match &l.model {
                     OneOrMany::One(s) => {
-                        let m =
-                            self.resolve_single(s, Some(l)).map_err(|e| format!("model '{name}': {e}"))?;
+                        let m = self
+                            .resolve_single(s, Some(l))
+                            .map_err(|e| format!("model '{name}': {e}"))?;
                         resolved.insert(name.clone(), m);
                     }
                     OneOrMany::Many(specs) => {
@@ -373,7 +447,11 @@ impl FileConfig {
                         }
                         chains.insert(
                             name.clone(),
-                            ChainDef { elems, display_name: l.display_name.clone(), expose: l.expose.clone() },
+                            ChainDef {
+                                elems,
+                                display_name: l.display_name.clone(),
+                                expose: l.expose.clone(),
+                            },
                         );
                     }
                 },
@@ -383,7 +461,11 @@ impl FileConfig {
                     }
                     chains.insert(
                         name.clone(),
-                        ChainDef { elems: elems.clone(), display_name: None, expose: None },
+                        ChainDef {
+                            elems: elems.clone(),
+                            display_name: None,
+                            expose: None,
+                        },
                     );
                 }
             }
@@ -393,8 +475,18 @@ impl FileConfig {
         //    become anonymous models: routable, but never listed or directly
         //    selectable.
         let mut inline_refs: Vec<String> = chains.values().flat_map(|c| c.elems.clone()).collect();
-        for roles in [self.clients.claude_code.as_ref(), self.clients.codex.as_ref()].into_iter().flatten() {
-            let values = [Some(&roles.main), roles.subagent.as_ref(), roles.background.as_ref()];
+        for roles in [
+            self.clients.claude_code.as_ref(),
+            self.clients.codex.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let values = [
+                Some(&roles.main),
+                roles.subagent.as_ref(),
+                roles.background.as_ref(),
+            ];
             inline_refs.extend(values.into_iter().flatten().flat_map(RoleValue::names));
         }
         for name in inline_refs {
@@ -409,7 +501,9 @@ impl FileConfig {
         for (name, def) in &chains {
             for e in &def.elems {
                 if !resolved.contains_key(e) {
-                    return Err(format!("model '{name}': chain element '{e}' is not a model"));
+                    return Err(format!(
+                        "model '{name}': chain element '{e}' is not a model"
+                    ));
                 }
             }
         }
@@ -418,7 +512,9 @@ impl FileConfig {
         let mut model_map: Vec<ModelMapEntry> = Vec::new();
         let insert = |models: &mut BTreeMap<String, ModelConfig>, alias: String, m: ModelConfig| {
             if models.insert(alias.clone(), m).is_some() {
-                return Err(format!("alias '{alias}' is defined twice (role/model name collision)"));
+                return Err(format!(
+                    "alias '{alias}' is defined twice (role/model name collision)"
+                ));
             }
             Ok(())
         };
@@ -442,15 +538,26 @@ impl FileConfig {
                 CompatLevel::Tools
             }
         };
-        let named: Vec<(String, Vec<String>, Option<String>, Option<Vec<String>>)> = resolved
+        type NamedModelEntry = (String, Vec<String>, Option<String>, Option<Vec<String>>);
+        let named: Vec<NamedModelEntry> = resolved
             .iter()
             .filter(|(_, rm)| rm.expose.as_deref() != Some(&[])) // skip anonymous inline models
-            .map(|(n, rm)| (n.clone(), vec![n.clone()], rm.display_name.clone(), rm.expose.clone()))
-            .chain(
-                chains
-                    .iter()
-                    .map(|(n, def)| (n.clone(), def.elems.clone(), def.display_name.clone(), def.expose.clone())),
-            )
+            .map(|(n, rm)| {
+                (
+                    n.clone(),
+                    vec![n.clone()],
+                    rm.display_name.clone(),
+                    rm.expose.clone(),
+                )
+            })
+            .chain(chains.iter().map(|(n, def)| {
+                (
+                    n.clone(),
+                    def.elems.clone(),
+                    def.display_name.clone(),
+                    def.expose.clone(),
+                )
+            }))
             .collect();
         for (name, elems, display_name, expose) in named {
             let client_on = |c: &str, cfg_present: bool| {
@@ -474,10 +581,9 @@ impl FileConfig {
                     elems
                         .iter()
                         .map(|e| {
-                            resolved[e]
-                                .display_name
-                                .clone()
-                                .unwrap_or_else(|| pretty_model_name(&resolved[e].route_template.model))
+                            resolved[e].display_name.clone().unwrap_or_else(|| {
+                                pretty_model_name(&resolved[e].route_template.model)
+                            })
                         })
                         .collect::<Vec<_>>()
                         .join(" → ")
@@ -488,8 +594,16 @@ impl FileConfig {
                 ModelConfig {
                     display_name: Some(display),
                     compatibility: Compatibility {
-                        claude_code: if for_claude { claude_level } else { CompatLevel::Blocked },
-                        codex: if for_codex { CompatLevel::Full } else { CompatLevel::Blocked },
+                        claude_code: if for_claude {
+                            claude_level
+                        } else {
+                            CompatLevel::Blocked
+                        },
+                        codex: if for_codex {
+                            CompatLevel::Full
+                        } else {
+                            CompatLevel::Blocked
+                        },
                     },
                     routes,
                     fallback: None,
@@ -521,10 +635,20 @@ impl FileConfig {
                 // Anthropic upstreams are protocol-native for Claude Code;
                 // anything translated is "tools" level.
                 let full = routes.iter().all(|r| r.provider == ProviderKind::Anthropic);
-                let level = if full { CompatLevel::Full } else { CompatLevel::Tools };
+                let level = if full {
+                    CompatLevel::Full
+                } else {
+                    CompatLevel::Tools
+                };
                 match client {
-                    "claude_code" => Compatibility { claude_code: level, codex: CompatLevel::Blocked },
-                    _ => Compatibility { claude_code: CompatLevel::Blocked, codex: CompatLevel::Full },
+                    "claude_code" => Compatibility {
+                        claude_code: level,
+                        codex: CompatLevel::Blocked,
+                    },
+                    _ => Compatibility {
+                        claude_code: CompatLevel::Blocked,
+                        codex: CompatLevel::Full,
+                    },
                 }
             };
 
@@ -551,10 +675,9 @@ impl FileConfig {
                 let display = chain
                     .iter()
                     .map(|name| {
-                        resolved[name]
-                            .display_name
-                            .clone()
-                            .unwrap_or_else(|| pretty_model_name(&resolved[name].route_template.model))
+                        resolved[name].display_name.clone().unwrap_or_else(|| {
+                            pretty_model_name(&resolved[name].route_template.model)
+                        })
                     })
                     .collect::<Vec<_>>()
                     .join(" → ");
@@ -579,7 +702,9 @@ impl FileConfig {
             if let Some(target) = unknown_target {
                 // role names resolve to this client's role alias; model names
                 // are bare
-                let target_alias = if ROLE_NAMES.contains(&target.as_str()) && models.contains_key(&alias_of(&target)) {
+                let target_alias = if ROLE_NAMES.contains(&target.as_str())
+                    && models.contains_key(&alias_of(&target))
+                {
                     alias_of(&target)
                 } else if models.contains_key(&target) {
                     target
@@ -590,14 +715,26 @@ impl FileConfig {
                 };
                 if client == "claude_code" {
                     if roles.subagent.is_some() {
-                        model_map.push(ModelMapEntry { pattern: "claude-opus-*".into(), model: alias_of("subagent") });
+                        model_map.push(ModelMapEntry {
+                            pattern: "claude-opus-*".into(),
+                            model: alias_of("subagent"),
+                        });
                     }
                     if roles.background.is_some() {
-                        model_map.push(ModelMapEntry { pattern: "claude-haiku-*".into(), model: alias_of("background") });
+                        model_map.push(ModelMapEntry {
+                            pattern: "claude-haiku-*".into(),
+                            model: alias_of("background"),
+                        });
                     }
-                    model_map.push(ModelMapEntry { pattern: "claude-*".into(), model: target_alias });
+                    model_map.push(ModelMapEntry {
+                        pattern: "claude-*".into(),
+                        model: target_alias,
+                    });
                 } else {
-                    model_map.push(ModelMapEntry { pattern: "*".into(), model: target_alias });
+                    model_map.push(ModelMapEntry {
+                        pattern: "*".into(),
+                        model: target_alias,
+                    });
                 }
             }
         }
@@ -609,9 +746,16 @@ impl FileConfig {
 
         let cfg = Config {
             server: ServerConfig {
-                bind: self.server.bind.clone().unwrap_or_else(|| "127.0.0.1:4000".into()),
+                bind: self
+                    .server
+                    .bind
+                    .clone()
+                    .unwrap_or_else(|| "127.0.0.1:4000".into()),
             },
-            auth: AuthConfig { mode: Some("bearer".into()), tokens },
+            auth: AuthConfig {
+                mode: Some("bearer".into()),
+                tokens,
+            },
             fallback: self.fallback.clone(),
             model_map,
             default_model: None,
@@ -687,10 +831,13 @@ fn expand_env(input: &str) -> Result<String, String> {
         while let Some(start) = rest.find("${") {
             out.push_str(&rest[..start]);
             let after = &rest[start + 2..];
-            let end = after.find('}').ok_or("config contains an unclosed ${...} reference")?;
+            let end = after
+                .find('}')
+                .ok_or("config contains an unclosed ${...} reference")?;
             let name = &after[..end];
-            let val = std::env::var(name)
-                .map_err(|_| format!("config references ${{{name}}} but that environment variable is not set"))?;
+            let val = std::env::var(name).map_err(|_| {
+                format!("config references ${{{name}}} but that environment variable is not set")
+            })?;
             out.push_str(&val);
             rest = &after[end + 1..];
         }
@@ -702,7 +849,8 @@ fn expand_env(input: &str) -> Result<String, String> {
 
 pub fn load(yaml: &str) -> Result<Config, String> {
     let yaml = expand_env(yaml)?;
-    let file: FileConfig = serde_yaml::from_str(&yaml).map_err(|e| format!("config parse error: {e}"))?;
+    let file: FileConfig =
+        serde_yaml::from_str(&yaml).map_err(|e| format!("config parse error: {e}"))?;
     file.compile()
 }
 
@@ -743,8 +891,14 @@ clients:
         let main = &cfg.models["claude-main"];
         assert_eq!(main.routes.len(), 2);
         assert_eq!(main.routes[0].model, "gpt-5.5");
-        assert_eq!(main.routes[0].base_url, "https://my-foundry.services.ai.azure.com/openai/v1");
-        assert_eq!(main.routes[0].api_key_env.as_deref(), Some("AZURE_AI_API_KEY"));
+        assert_eq!(
+            main.routes[0].base_url,
+            "https://my-foundry.services.ai.azure.com/openai/v1"
+        );
+        assert_eq!(
+            main.routes[0].api_key_env.as_deref(),
+            Some("AZURE_AI_API_KEY")
+        );
         assert_eq!(main.routes[1].model, "moonshotai/kimi-k2.7-code");
         assert_eq!(main.routes[1].base_url, "https://openrouter.ai/api/v1");
         assert_eq!(main.compatibility.claude_code, CompatLevel::Tools);
@@ -763,25 +917,43 @@ clients:
 
         // one bare alias per name, shared by both clients
         assert_eq!(cfg.models["kimi-27"].compatibility.codex, CompatLevel::Full);
-        assert_eq!(cfg.models["kimi-27"].compatibility.claude_code, CompatLevel::Tools);
+        assert_eq!(
+            cfg.models["kimi-27"].compatibility.claude_code,
+            CompatLevel::Tools
+        );
         // role aliases exist per client but stay internal
-        assert_eq!(cfg.models["main"].compatibility.claude_code, CompatLevel::Blocked);
+        assert_eq!(
+            cfg.models["main"].compatibility.claude_code,
+            CompatLevel::Blocked
+        );
 
         // expose filtering: local-only blocked for claude_code
-        assert_eq!(cfg.models["local-only"].compatibility.claude_code, CompatLevel::Blocked);
-        assert_eq!(cfg.models["local-only"].compatibility.codex, CompatLevel::Full);
+        assert_eq!(
+            cfg.models["local-only"].compatibility.claude_code,
+            CompatLevel::Blocked
+        );
+        assert_eq!(
+            cfg.models["local-only"].compatibility.codex,
+            CompatLevel::Full
+        );
 
         // all role aliases are internal (hidden); only named models are listed
         assert!(cfg.models["claude-main"].hidden);
         assert!(cfg.models["claude-subagent"].hidden);
         assert!(cfg.models["claude-background"].hidden);
         assert!(!cfg.models["kimi-27"].hidden);
-        assert_eq!(cfg.models["claude-main"].display_name.as_deref(), Some("GPT 5.5 → Kimi K2.7 Code"));
+        assert_eq!(
+            cfg.models["claude-main"].display_name.as_deref(),
+            Some("GPT 5.5 → Kimi K2.7 Code")
+        );
 
         // unknown-id routing: opus -> subagent, haiku -> background, claude-* -> main;
         // codex has unknown: reject so no "*" pattern
-        let pats: Vec<(&str, &str)> =
-            cfg.model_map.iter().map(|e| (e.pattern.as_str(), e.model.as_str())).collect();
+        let pats: Vec<(&str, &str)> = cfg
+            .model_map
+            .iter()
+            .map(|e| (e.pattern.as_str(), e.model.as_str()))
+            .collect();
         assert_eq!(
             pats,
             vec![
@@ -810,7 +982,10 @@ clients:
         let kimi = &cfg.models["kimi"];
         assert!(!kimi.hidden);
         assert_eq!(kimi.routes.len(), 2);
-        assert_eq!(kimi.display_name.as_deref(), Some("Kimi K2.7 Code → Kimi K2.6"));
+        assert_eq!(
+            kimi.display_name.as_deref(),
+            Some("Kimi K2.7 Code → Kimi K2.6")
+        );
         assert_eq!(kimi.compatibility.claude_code, CompatLevel::Tools);
         assert_eq!(kimi.compatibility.codex, CompatLevel::Full);
         // discovery twin exists for Claude Code's picker, blocked for codex
@@ -842,7 +1017,10 @@ clients:
         let cfg = load(yaml).unwrap();
         let qwen = &cfg.models["qwen"];
         assert!(!qwen.hidden);
-        assert_eq!(qwen.display_name.as_deref(), Some("Qwen3 Coder (local + cloud fallback)"));
+        assert_eq!(
+            qwen.display_name.as_deref(),
+            Some("Qwen3 Coder (local + cloud fallback)")
+        );
         assert_eq!(qwen.routes.len(), 2);
         assert_eq!(qwen.routes[0].base_url, "http://localhost:8000/v1");
         assert_eq!(qwen.routes[1].base_url, "https://openrouter.ai/api/v1");
@@ -865,7 +1043,9 @@ models:
   stack: [openrouter/x, missing-name]
 clients: { codex: { main: stack } }
 "#;
-        assert!(load(yaml).unwrap_err().contains("'missing-name' is not a model"));
+        assert!(load(yaml)
+            .unwrap_err()
+            .contains("'missing-name' is not a model"));
     }
 
     #[test]
@@ -885,7 +1065,10 @@ clients:
         assert_eq!(main.routes[0].model, "moonshotai/kimi-k2.7-code");
         // quirk table still applies to inline models
         assert_eq!(main.routes[0].drop_params, vec!["temperature", "top_p"]);
-        assert_eq!(cfg.models["main"].routes[0].base_url, "https://api.groq.com/openai/v1");
+        assert_eq!(
+            cfg.models["main"].routes[0].base_url,
+            "https://api.groq.com/openai/v1"
+        );
         // inline models are not directly selectable aliases
         assert!(!cfg.models.keys().any(|k| k.contains('/')));
     }
@@ -922,8 +1105,16 @@ clients: { claude_code: { main: kimi } }
     #[test]
     fn provider_presets_resolve() {
         for (name, base, env) in [
-            ("fireworks", "https://api.fireworks.ai/inference/v1", "FIREWORKS_API_KEY"),
-            ("together", "https://api.together.xyz/v1", "TOGETHER_API_KEY"),
+            (
+                "fireworks",
+                "https://api.fireworks.ai/inference/v1",
+                "FIREWORKS_API_KEY",
+            ),
+            (
+                "together",
+                "https://api.together.xyz/v1",
+                "TOGETHER_API_KEY",
+            ),
             ("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY"),
             ("ollama", "http://localhost:11434/v1", "OLLAMA_API_KEY"),
         ] {
@@ -946,19 +1137,26 @@ clients:
     subagent: main
 "#;
         let cfg = load(yaml).unwrap();
-        assert_eq!(cfg.models["claude-subagent"].routes[0].model, "moonshotai/kimi-k2.7-code");
+        assert_eq!(
+            cfg.models["claude-subagent"].routes[0].model,
+            "moonshotai/kimi-k2.7-code"
+        );
     }
 
     #[test]
     fn helpful_errors() {
         let bad_provider = "models: { m: nowhere/x }\nclients: { codex: { main: m } }";
-        assert!(load(bad_provider).unwrap_err().contains("not a known preset"));
+        assert!(load(bad_provider)
+            .unwrap_err()
+            .contains("not a known preset"));
 
         let bad_ref = r#"
 models: { kimi: openrouter/k }
 clients: { codex: { main: kimmy } }
 "#;
-        assert!(load(bad_ref).unwrap_err().contains("'kimmy' is not a model or role"));
+        assert!(load(bad_ref)
+            .unwrap_err()
+            .contains("'kimmy' is not a model or role"));
 
         let no_clients = "models: { m: openrouter/x }\nclients: {}";
         assert!(load(no_clients).unwrap_err().contains("at least one"));
@@ -967,7 +1165,9 @@ clients: { codex: { main: kimmy } }
 models: { main: openrouter/x }
 clients: { codex: { main: main } }
 "#;
-        assert!(load(collision).unwrap_err().contains("collides with a role name"));
+        assert!(load(collision)
+            .unwrap_err()
+            .contains("collides with a role name"));
     }
 
     #[test]

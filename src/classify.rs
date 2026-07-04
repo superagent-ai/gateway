@@ -48,9 +48,13 @@ fn contains_block_type(v: &Value, ty: &str) -> bool {
 }
 
 pub fn classify_anthropic(body: &Value) -> Requirements {
-    let block_type = |t: &'static str| move |b: &Value| b.get("type").and_then(Value::as_str) == Some(t);
+    let block_type =
+        |t: &'static str| move |b: &Value| b.get("type").and_then(Value::as_str) == Some(t);
     Requirements {
-        has_tools: body.get("tools").and_then(Value::as_array).is_some_and(|t| !t.is_empty()),
+        has_tools: body
+            .get("tools")
+            .and_then(Value::as_array)
+            .is_some_and(|t| !t.is_empty()),
         has_tool_results: any_content_block(body, &block_type("tool_result")),
         has_images: contains_block_type(body.get("messages").unwrap_or(&Value::Null), "image"),
         has_thinking: body.get("thinking").is_some_and(|t| !t.is_null()),
@@ -62,11 +66,18 @@ pub fn classify_anthropic(body: &Value) -> Requirements {
 pub fn classify_responses(body: &Value) -> Requirements {
     let input_items = body.get("input").and_then(Value::as_array);
     let item_type = |t: &str| {
-        input_items.is_some_and(|items| items.iter().any(|i| i.get("type").and_then(Value::as_str) == Some(t)))
+        input_items.is_some_and(|items| {
+            items
+                .iter()
+                .any(|i| i.get("type").and_then(Value::as_str) == Some(t))
+        })
     };
     let has_images = contains_block_type(body.get("input").unwrap_or(&Value::Null), "input_image");
     Requirements {
-        has_tools: body.get("tools").and_then(Value::as_array).is_some_and(|t| !t.is_empty()),
+        has_tools: body
+            .get("tools")
+            .and_then(Value::as_array)
+            .is_some_and(|t| !t.is_empty()),
         has_tool_results: item_type("function_call_output"),
         has_images,
         has_thinking: body.get("reasoning").is_some_and(|r| !r.is_null()),
@@ -84,7 +95,11 @@ pub fn compat_for(compat: &Compatibility, client: ClientProtocol) -> CompatLevel
 
 /// A route is eligible only if the client compat level is not blocked and the
 /// route capabilities cover what the request actually uses.
-pub fn route_eligible(route: &RouteConfig, level: CompatLevel, req: &Requirements) -> Result<(), String> {
+pub fn route_eligible(
+    route: &RouteConfig,
+    level: CompatLevel,
+    req: &Requirements,
+) -> Result<(), String> {
     if level == CompatLevel::Blocked {
         return Err("route blocked for this client".into());
     }
@@ -163,7 +178,10 @@ mod tests {
             "{ id: r2, provider: openai_compatible, model: m, base_url: 'http://x', api_key: k, capabilities: { tools: openai, images: true } }",
         )
         .unwrap();
-        let req = Requirements { has_images: true, ..Default::default() };
+        let req = Requirements {
+            has_images: true,
+            ..Default::default()
+        };
         assert!(route_eligible(&no_images, CompatLevel::Tools, &req).is_err());
         assert!(route_eligible(&with_images, CompatLevel::Tools, &req).is_ok());
     }
@@ -174,7 +192,10 @@ mod tests {
             "{ id: r, provider: openai_compatible, model: m, base_url: 'http://x', api_key: k }",
         )
         .unwrap();
-        let req = Requirements { has_tools: true, ..Default::default() };
+        let req = Requirements {
+            has_tools: true,
+            ..Default::default()
+        };
         assert!(route_eligible(&route, CompatLevel::Tools, &req).is_err());
         let req = Requirements::default();
         assert!(route_eligible(&route, CompatLevel::Tools, &req).is_ok());
