@@ -36,11 +36,11 @@ server:
 #
 # Declare a provider only for custom endpoints or to override a preset.
 providers:
+  azure:
+    resource: "${AZURE_AI_RESOURCE}"
   vllm-local:
     base_url: "http://localhost:8000/v1"
     api_key: dummy
-  # azure:
-  #   resource: my-foundry            # -> https://my-foundry.services.ai.azure.com/openai/v1
   # my-anthropic-proxy:
   #   type: anthropic                 # anthropic | openai (default: openai)
   #   base_url: "https://proxy.example.com"
@@ -59,15 +59,16 @@ providers:
 # on connection failure, 429, or 5xx the next entry is tried, in order.
 # Fallback only happens before the response starts streaming — a model that
 # has begun answering (or calling a tool) is never silently swapped.
-# The `kimi` model below is an example: K2.7 primary, K2.6 fallback.
+# The `kimi` model below uses Azure Kimi K2.6 first, then falls back to
+# OpenRouter GLM 5.2.
 #
 # Known model families (kimi, gpt, claude, ...) get capabilities from a
 # built-in quirk table — e.g. Kimi automatically drops temperature/top_p
 # (fixed by the API), keeps reasoning across tool turns, accepts images.
 models:
-  kimi: 
-    model: [openrouter/moonshotai/kimi-k2.7-code, openrouter/moonshotai/kimi-k2.6]
-    display_name: "Kimi K2.7 Code (fallback to K2.6)"
+  kimi:
+    model: [azure/kimi-k2.6, openrouter/z-ai/glm-5.2]
+    display_name: "Azure Kimi K2.6 (fallback to OpenRouter GLM 5.2)"
   qwen-local:
     model: vllm-local/qwen3-coder
     # model: [vllm-local/qwen3-coder, openrouter/qwen/qwen3-coder]  # with fallback
