@@ -18,6 +18,7 @@ RUN touch src/main.rs src/lib.rs && cargo build --release
 # distroless/cc: glibc + CA certs, no shell, ~20 MB
 FROM gcr.io/distroless/cc-debian12
 COPY --from=builder /app/target/release/gateway /usr/local/bin/gateway
+COPY gateway.yaml /etc/gateway/gateway.yaml
 
 # Containers must bind beyond loopback; auth tokens are still required for
 # non-localhost binds (enforced at startup).
