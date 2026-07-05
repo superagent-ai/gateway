@@ -5,10 +5,24 @@
 Point Claude Code and Codex at one local endpoint and run them on any model —
 Kimi, GPT, Qwen, Claude, or anything OpenAI-compatible.
 
-```text
-Claude Code ──┐             ┌── OpenRouter · OpenAI · Anthropic · Moonshot · ...
-              ├──▶ gateway ─┤
-Codex CLI ────┘             └── vLLM · Ollama · any OpenAI-compatible server
+```mermaid
+flowchart LR
+    subgraph Clients
+        claude["Claude Code"]
+        codex["Codex CLI"]
+    end
+
+    gateway["gateway"]
+
+    subgraph Providers
+        hosted["OpenRouter · OpenAI · Anthropic · Moonshot · ..."]
+        local["vLLM · Ollama · any OpenAI-compatible server"]
+    end
+
+    claude --> gateway
+    codex --> gateway
+    gateway --> hosted
+    gateway --> local
 ```
 
 - **Native protocol per client.** Claude Code gets an Anthropic Messages API,
