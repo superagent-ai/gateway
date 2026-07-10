@@ -65,6 +65,12 @@ providers:
 # built-in quirk table — e.g. Kimi automatically drops temperature/top_p
 # (fixed by the API), keeps reasoning across tool turns, accepts images.
 models:
+  sol:
+    model: [azure/gpt-5.6-sol, openrouter/moonshotai/kimi-k2.7-code]
+    display_name: "Azure GPT-5.6 Sol (fallback to OpenRouter Kimi K2.7 Code)"
+  kimi-27:
+    model: openrouter/moonshotai/kimi-k2.7-code
+    display_name: "OpenRouter Kimi K2.7 Code"
   kimi:
     model: [azure/kimi-k2.6, openrouter/z-ai/glm-5.2]
     display_name: "Azure Kimi K2.6 (fallback to OpenRouter GLM 5.2)"
@@ -95,8 +101,8 @@ models:
 # Roles may reference other roles (e.g. `subagent: main`).
 clients:
   claude_code:
-    main: kimi
-    subagent: kimi
+    main: sol
+    subagent: kimi-27
     background: kimi
   codex:
     main: kimi
