@@ -9,6 +9,14 @@ fn str_of<'a>(v: &'a Value, key: &str) -> &'a str {
     v.get(key).and_then(Value::as_str).unwrap_or("")
 }
 
+fn max_tokens_param(upstream_model: &str) -> &'static str {
+    if upstream_model.eq_ignore_ascii_case("gpt-5.6-sol") {
+        "max_completion_tokens"
+    } else {
+        "max_tokens"
+    }
+}
+
 /// Flatten Anthropic/Responses content (string or block array) to plain text.
 pub fn flatten_text(content: &Value) -> String {
     match content {
@@ -213,12 +221,12 @@ pub fn anthropic_to_chat(body: &Value, upstream_model: &str) -> Value {
         body,
         &mut out,
         &[
-            ("max_tokens", "max_tokens"),
             ("temperature", "temperature"),
             ("top_p", "top_p"),
             ("stop_sequences", "stop"),
         ],
     );
+    copy_fields(body, &mut out, &[("max_tokens", max_tokens_param(upstream_model))]);
     if body.get("stream").and_then(Value::as_bool).unwrap_or(false) {
         out.insert("stream".into(), json!(true));
         out.insert("stream_options".into(), json!({"include_usage": true}));
@@ -487,6 +495,21 @@ mod tests {
             chat["tools"][0]["function"]["parameters"]["properties"]["cmd"]["type"],
             "string"
         );
+        assert_eq!(chat["max_tokens"], 8192);
+        assert!(chat.get("max_completion_tokens").is_none());
+    }
+
+    #[test]
+    fn sol_uses_max_completion_tokens() {
+        let req = json!({
+            "model": "sol",
+            "messages": [{"role": "user", "content": "say ok"}],
+            "max_tokens": 16
+        });
+        let chat = anthropic_to_chat(&req, "gpt-5.6-sol");
+        assert_eq!(chat["model"], "gpt-5.6-sol");
+        assert_eq!(chat["max_completion_tokens"], 16);
+        assert!(chat.get("max_tokens").is_none());
     }
 
     #[test]
