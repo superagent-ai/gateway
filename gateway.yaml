@@ -68,6 +68,9 @@ models:
   sol:
     model: [azure/gpt-5.6-sol, openrouter/moonshotai/kimi-k2.7-code]
     display_name: "Azure GPT-5.6 Sol (fallback to OpenRouter Kimi K2.7 Code)"
+  kimi-k3:
+    model: [openrouter/moonshotai/kimi-k3, openrouter/moonshotai/kimi-k2.7-code]
+    display_name: "OpenRouter Kimi K3 Code"
   kimi-27:
     model: openrouter/moonshotai/kimi-k2.7-code
     display_name: "OpenRouter Kimi K2.7 Code"
@@ -102,8 +105,8 @@ models:
 clients:
   claude_code:
     main: sol
-    subagent: kimi-27
-    background: kimi
+    subagent: kimi-k3
+    background: kimi-k3
   codex:
     main: kimi
 
