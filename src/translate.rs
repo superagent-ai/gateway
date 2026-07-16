@@ -226,7 +226,11 @@ pub fn anthropic_to_chat(body: &Value, upstream_model: &str) -> Value {
             ("stop_sequences", "stop"),
         ],
     );
-    copy_fields(body, &mut out, &[("max_tokens", max_tokens_param(upstream_model))]);
+    copy_fields(
+        body,
+        &mut out,
+        &[("max_tokens", max_tokens_param(upstream_model))],
+    );
     if body.get("stream").and_then(Value::as_bool).unwrap_or(false) {
         out.insert("stream".into(), json!(true));
         out.insert("stream_options".into(), json!({"include_usage": true}));
