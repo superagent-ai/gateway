@@ -133,7 +133,12 @@ impl Default for TelemetryConfig {
         Self {
             log_prompts: false,
             log_tool_calls: true,
-            redact_headers: vec!["authorization".into(), "x-api-key".into()],
+            redact_headers: vec![
+                "authorization".into(),
+                "x-api-key".into(),
+                "modal-key".into(),
+                "modal-secret".into(),
+            ],
         }
     }
 }
@@ -201,6 +206,10 @@ pub struct RouteConfig {
     pub api_key: Option<String>,
     #[serde(default)]
     pub api_key_env: Option<String>,
+    /// Extra headers sent verbatim on every upstream request (custom
+    /// endpoints with non-standard auth, e.g. Modal-Key/Modal-Secret).
+    #[serde(default)]
+    pub headers: std::collections::BTreeMap<String, String>,
     #[serde(default = "d_timeout")]
     pub timeout_ms: u64,
     /// Top-level body params to strip before sending upstream (for providers

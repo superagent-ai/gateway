@@ -41,6 +41,13 @@ providers:
   vllm-local:
     base_url: "http://localhost:8000/v1"
     api_key: dummy
+  modal-kimi:
+    type: openai
+    base_url: "https://superagentai--huihui-kimi-k2-7-code-inference-server.modal.run/v1"
+    api_key: unused                   # Modal auth is via headers, not bearer
+    headers:                          # extra headers sent on every request
+      Modal-Key: "${MODAL_KEY}"
+      Modal-Secret: "${MODAL_SECRET}"
   # my-anthropic-proxy:
   #   type: anthropic                 # anthropic | openai (default: openai)
   #   base_url: "https://proxy.example.com"
@@ -65,6 +72,11 @@ providers:
 # built-in quirk table — e.g. Kimi automatically drops temperature/top_p
 # (fixed by the API), keeps reasoning across tool turns, accepts images.
 models:
+  abliterated:
+    model: modal-kimi/huihui-ai/Huihui-Kimi-K2.7-Code-abliterated-GGUF
+    display_name: "Huihui Kimi K2.7 Code Abliterated (Modal)"
+    # kimi quirks apply automatically: native thinking, temperature/top_p
+    # dropped, 300s timeout
   sol:
     model: [azure/gpt-5.6-sol, openrouter/moonshotai/kimi-k2.7-code]
     display_name: "Azure GPT-5.6 Sol (fallback to OpenRouter Kimi K2.7 Code)"
@@ -104,7 +116,7 @@ models:
 # Roles may reference other roles (e.g. `subagent: main`).
 clients:
   claude_code:
-    main: sol
+    main: abliterated
     subagent: kimi-k3
     background: kimi-k3
   codex:

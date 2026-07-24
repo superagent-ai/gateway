@@ -131,7 +131,27 @@ Known providers imply their base URL and key env var:
 
 
 Anything else is declared under `providers:` with a `base_url` (add
-`type: anthropic` for Anthropic-protocol upstreams).
+`type: anthropic` for Anthropic-protocol upstreams). Providers that
+authenticate with custom headers instead of a bearer token — Modal endpoints,
+proxies, self-hosted servers behind auth layers — can declare `headers:`,
+sent verbatim on every upstream request:
+
+```yaml
+providers:
+  vllm-local:
+    base_url: "http://localhost:8000/v1"
+    api_key: dummy
+  modal:
+    type: openai
+    base_url: "https://my-workspace--my-endpoint.modal.run/v1"
+    api_key: unused                  # auth happens via headers below
+    headers:
+      Modal-Key: "${MODAL_KEY}"
+      Modal-Secret: "${MODAL_SECRET}"
+
+models:
+  abliterated: modal/huihui-ai/Huihui-Kimi-K2.7-Code-abliterated-GGUF
+```
 
 Known model families get capabilities from a built-in quirk table (Kimi:
 fixed sampling stripped, reasoning preserved, vision; GPT/Claude: vision;
