@@ -273,6 +273,10 @@ fn upstream_request(
             .post(format!("{}/chat/completions", route.base()))
             .bearer_auth(key),
     };
+    // Provider-level custom headers (e.g. Modal-Key/Modal-Secret proxy auth).
+    for (name, value) in &route.headers {
+        rb = rb.header(name, value);
+    }
     if !stream {
         rb = rb.timeout(Duration::from_millis(route.timeout_ms));
     }
@@ -631,11 +635,15 @@ async fn count_tokens(
             ProviderKind::Anthropic => {
                 let mut upstream_body = body.clone();
                 upstream_body["model"] = json!(route.model);
-                let resp = st
+                let mut rb = st
                     .http
                     .post(format!("{}/v1/messages/count_tokens", route.base()))
                     .header("x-api-key", route.resolve_api_key().unwrap_or_default())
-                    .header("anthropic-version", "2023-06-01")
+                    .header("anthropic-version", "2023-06-01");
+                for (name, value) in &route.headers {
+                    rb = rb.header(name, value);
+                }
+                let resp = rb
                     .timeout(Duration::from_millis(route.timeout_ms))
                     .json(&upstream_body)
                     .send()

@@ -35,6 +35,38 @@ pub fn flatten_text(content: &Value) -> String {
     }
 }
 
+/// Grammar-constrained upstreams (llama.cpp-based servers) compile string
+/// length bounds into their sampling grammar; very large bounds (Claude Code
+/// sends `maxLength: 524288` on one tool) make grammar construction fail with
+/// a 400 for the whole request. Hosted providers ignore these bounds, so
+/// dropping oversized ones is lossless.
+const MAX_SANE_LENGTH_BOUND: u64 = 1024;
+
+fn sanitize_tool_schema(v: &mut Value) {
+    match v {
+        Value::Object(map) => {
+            for key in ["maxLength", "minLength"] {
+                if map
+                    .get(key)
+                    .and_then(Value::as_u64)
+                    .is_some_and(|n| n > MAX_SANE_LENGTH_BOUND)
+                {
+                    map.remove(key);
+                }
+            }
+            for val in map.values_mut() {
+                sanitize_tool_schema(val);
+            }
+        }
+        Value::Array(arr) => {
+            for val in arr {
+                sanitize_tool_schema(val);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn parse_args(args: &Value) -> Value {
     match args {
         Value::String(s) => serde_json::from_str(s).unwrap_or_else(|_| json!({})),
@@ -197,10 +229,12 @@ pub fn anthropic_to_chat(body: &Value, upstream_model: &str) -> Value {
             .iter()
             .filter(|t| t.get("input_schema").is_some())
             .map(|t| {
+                let mut params = t["input_schema"].clone();
+                sanitize_tool_schema(&mut params);
                 json!({"type": "function", "function": {
                     "name": str_of(t, "name"),
                     "description": str_of(t, "description"),
-                    "parameters": t["input_schema"],
+                    "parameters": params,
                 }})
             })
             .collect();
@@ -501,6 +535,27 @@ mod tests {
         );
         assert_eq!(chat["max_tokens"], 8192);
         assert!(chat.get("max_completion_tokens").is_none());
+    }
+
+    #[test]
+    fn oversized_string_length_bounds_stripped_from_tool_schemas() {
+        let req = json!({
+            "model": "m", "max_tokens": 64,
+            "messages": [{"role": "user", "content": "hi"}],
+            "tools": [{"name": "Workflow", "description": "d",
+                       "input_schema": {"type": "object", "properties": {
+                           "script": {"type": "string", "maxLength": 524288},
+                           "name": {"type": "string", "maxLength": 64, "minLength": 1}
+                       }}}]
+        });
+        let chat = anthropic_to_chat(&req, "m");
+        let props = &chat["tools"][0]["function"]["parameters"]["properties"];
+        // huge bound dropped (breaks grammar-constrained upstreams)…
+        assert!(props["script"].get("maxLength").is_none());
+        assert_eq!(props["script"]["type"], "string");
+        // …small, meaningful bounds preserved
+        assert_eq!(props["name"]["maxLength"], 64);
+        assert_eq!(props["name"]["minLength"], 1);
     }
 
     #[test]

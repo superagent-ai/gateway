@@ -68,6 +68,10 @@ pub struct ProviderEntry {
     pub api_key_env: Option<String>,
     #[serde(default)]
     pub api_key: Option<String>,
+    /// Extra headers sent verbatim on every upstream request (e.g. Modal's
+    /// `Modal-Key` / `Modal-Secret` proxy auth). Values support `${VAR}`.
+    #[serde(default)]
+    pub headers: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,6 +233,7 @@ struct ResolvedProvider {
     base_url: String,
     api_key: Option<String>,
     api_key_env: Option<String>,
+    headers: BTreeMap<String, String>,
 }
 
 fn resolve_provider(name: &str, entry: Option<&ProviderEntry>) -> Result<ResolvedProvider, String> {
@@ -273,6 +278,7 @@ fn resolve_provider(name: &str, entry: Option<&ProviderEntry>) -> Result<Resolve
         base_url,
         api_key: e.api_key,
         api_key_env,
+        headers: e.headers,
     })
 }
 
@@ -388,6 +394,7 @@ impl FileConfig {
                 base_url: provider.base_url,
                 api_key: provider.api_key,
                 api_key_env: provider.api_key_env,
+                headers: provider.headers,
                 timeout_ms: long.and_then(|l| l.timeout_ms).unwrap_or(q.timeout_ms),
                 drop_params: long
                     .and_then(|l| l.drop_params.clone())
@@ -1033,6 +1040,43 @@ clients:
         assert!(!cfg.models.contains_key("qwen[0]"));
         // main role follows the chain
         assert_eq!(cfg.models["claude-main"].routes.len(), 2);
+    }
+
+    #[test]
+    fn provider_custom_headers_land_on_routes() {
+        let yaml = r#"
+server: { token: t }
+providers:
+  modal:
+    type: openai
+    base_url: "https://example.modal.run/v1"
+    api_key: unused
+    headers:
+      Modal-Key: wk-test
+      Modal-Secret: ws-test
+models:
+  abliterated: modal/huihui-ai/some-kimi-model
+clients:
+  claude_code: { main: abliterated }
+"#;
+        let cfg = load(yaml).unwrap();
+        let route = &cfg.models["abliterated"].routes[0];
+        assert_eq!(
+            route.headers.get("Modal-Key").map(String::as_str),
+            Some("wk-test")
+        );
+        assert_eq!(
+            route.headers.get("Modal-Secret").map(String::as_str),
+            Some("ws-test")
+        );
+        // presets without declared headers get none
+        let yaml2 = r#"
+server: { token: t }
+models: { kimi: openrouter/moonshotai/kimi-k2.7-code }
+clients: { claude_code: { main: kimi } }
+"#;
+        let cfg2 = load(yaml2).unwrap();
+        assert!(cfg2.models["kimi"].routes[0].headers.is_empty());
     }
 
     #[test]

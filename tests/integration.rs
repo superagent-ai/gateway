@@ -87,10 +87,12 @@ async fn mock_anthropic_handler(
 
 async fn mock_openai_handler(
     State(st): State<Arc<MockState>>,
+    headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Response {
     st.calls.fetch_add(1, Ordering::SeqCst);
     *st.last_body.lock().unwrap() = Some(body.clone());
+    *st.last_headers.lock().unwrap() = Some(headers);
     if body["stream"].as_bool().unwrap_or(false) {
         return sse_body(concat!(
             "data: {\"id\":\"c1\",\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"hi\"}}]}\n\n",
@@ -142,7 +144,12 @@ fallback:
   max_attempts: 3
 providers:
   mock-anthropic: {{ type: anthropic, base_url: "{a_url}", api_key: upstream-key }}
-  mock-openai: {{ base_url: "{o_url}/v1", api_key: upstream-key }}
+  mock-openai:
+    base_url: "{o_url}/v1"
+    api_key: upstream-key
+    headers:
+      Modal-Key: wk-test
+      Modal-Secret: ws-test
 models:
   sonnet: mock-anthropic/claude-sonnet-4-6
   gpt-coder: mock-openai/gpt-5.1
@@ -229,6 +236,12 @@ async fn claude_code_tools_to_openai_compatible() {
     assert_eq!(sent["model"], "gpt-5.1");
     assert_eq!(sent["tools"][0]["type"], "function");
     assert_eq!(sent["tools"][0]["function"]["name"], "bash");
+
+    // provider-level custom headers reach the upstream alongside bearer auth
+    let headers = env.openai.last_headers.lock().unwrap().clone().unwrap();
+    assert_eq!(headers.get("modal-key").unwrap(), "wk-test");
+    assert_eq!(headers.get("modal-secret").unwrap(), "ws-test");
+    assert_eq!(headers.get("authorization").unwrap(), "Bearer upstream-key");
 }
 
 #[tokio::test]
