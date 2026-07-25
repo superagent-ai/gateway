@@ -116,7 +116,7 @@ models:
 # Roles may reference other roles (e.g. `subagent: main`).
 clients:
   claude_code:
-    main: abliterated
+    main: sol
     subagent: kimi-k3
     background: kimi-k3
   codex:
