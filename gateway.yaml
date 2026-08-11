@@ -81,8 +81,8 @@ models:
     model: [azure/gpt-5.6-sol, openrouter/moonshotai/kimi-k2.7-code]
     display_name: "Azure GPT-5.6 Sol (fallback to OpenRouter Kimi K2.7 Code)"
   fw-kimi-k3:
-    model: azure/FW-Kimi-K3
-    display_name: "Azure FW Kimi K3"
+    model: [azure/FW-Kimi-K3, azure/gpt-5.6-sol]
+    display_name: "Azure FW Kimi K3 (fallback to Azure GPT-5.6 Sol)"
     drop_message_params: [reasoning] # Azure accepts reasoning_content only
   kimi-k3:
     model: [openrouter/moonshotai/kimi-k3, openrouter/moonshotai/kimi-k2.7-code]
