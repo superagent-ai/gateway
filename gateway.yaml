@@ -83,6 +83,7 @@ models:
   fw-kimi-k3:
     model: azure/FW-Kimi-K3
     display_name: "Azure FW Kimi K3"
+    drop_message_params: [reasoning] # Azure accepts reasoning_content only
   kimi-k3:
     model: [openrouter/moonshotai/kimi-k3, openrouter/moonshotai/kimi-k2.7-code]
     display_name: "OpenRouter Kimi K3 Code"
@@ -104,6 +105,7 @@ models:
     # thinking: none                  # native | none (reasoning round-trip)
     # cache_control: none             # native | none
     # drop_params: [temperature]      # strip params the API rejects
+    # drop_message_params: [reasoning] # strip fields from chat messages
     # timeout_ms: 120000
     # expose: [claude_code, codex]    # which clients may select it (default: all)
 

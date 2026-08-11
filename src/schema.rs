@@ -108,6 +108,8 @@ pub struct ModelLong {
     #[serde(default)]
     pub drop_params: Option<Vec<String>>,
     #[serde(default)]
+    pub drop_message_params: Option<Vec<String>>,
+    #[serde(default)]
     pub timeout_ms: Option<u64>,
     /// Which clients may select this model directly (default: all configured).
     #[serde(default)]
@@ -399,6 +401,9 @@ impl FileConfig {
                 drop_params: long
                     .and_then(|l| l.drop_params.clone())
                     .unwrap_or(q.drop_params),
+                drop_message_params: long
+                    .and_then(|l| l.drop_message_params.clone())
+                    .unwrap_or_default(),
                 capabilities: RouteCapabilities {
                     text: true,
                     tools: long.and_then(|l| l.tools).unwrap_or(q.tools),
