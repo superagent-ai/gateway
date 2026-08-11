@@ -216,6 +216,10 @@ pub struct RouteConfig {
     /// that reject params they don't control, e.g. Kimi K2.7 fixes temperature).
     #[serde(default)]
     pub drop_params: Vec<String>,
+    /// Fields to strip from each Chat Completions message for strict providers
+    /// that accept only a subset of reasoning-history aliases.
+    #[serde(default)]
+    pub drop_message_params: Vec<String>,
     #[serde(default)]
     pub capabilities: RouteCapabilities,
 }

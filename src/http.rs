@@ -213,6 +213,15 @@ fn build_upstream_body(client: ClientProtocol, route: &RouteConfig, body: &Value
         for p in &route.drop_params {
             map.remove(p);
         }
+        if let Some(messages) = map.get_mut("messages").and_then(Value::as_array_mut) {
+            for message in messages {
+                if let Some(message) = message.as_object_mut() {
+                    for p in &route.drop_message_params {
+                        message.remove(p);
+                    }
+                }
+            }
+        }
     }
     out
 }
@@ -686,4 +695,53 @@ async fn count_tokens(
     }
     .await;
     result.unwrap_or_else(|e| e.into_response_for(client))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drops_configured_chat_message_params() {
+        let mut route = crate::schema::load(
+            r#"
+providers:
+  strict:
+    base_url: https://strict.example/v1
+    api_key: test
+models:
+  kimi:
+    model: strict/kimi
+    drop_message_params: [reasoning]
+clients:
+  claude_code: { main: kimi }
+"#,
+        )
+        .unwrap()
+        .models["kimi"]
+            .routes[0]
+            .clone();
+        route.drop_params.push("temperature".into());
+
+        let body = json!({
+            "temperature": 0.5,
+            "messages": [{
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "keep me", "signature": ""},
+                    {
+                        "type": "tool_use",
+                        "id": "echo_0",
+                        "name": "echo",
+                        "input": {"text": "hello"}
+                    }
+                ]
+            }]
+        });
+        let out = build_upstream_body(ClientProtocol::AnthropicMessages, &route, &body);
+
+        assert!(out.get("temperature").is_none());
+        assert!(out["messages"][0].get("reasoning").is_none());
+        assert_eq!(out["messages"][0]["reasoning_content"], "keep me");
+    }
 }
