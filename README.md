@@ -1,6 +1,13 @@
-# Superagent Gateway
+# Superagent Gateway 
 
 **A tiny Rust gateway for running coding agents across model providers safely.**
+
+<a href="https://www.superagent.sh">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://www.superagent.sh/api/badge/superagent-ai/gateway/shield.svg?theme=dark&accent=teal&variant=streak">
+    <img alt="Security posture verified by Superagent" src="https://www.superagent.sh/api/badge/superagent-ai/gateway/shield.svg?theme=light&accent=teal&variant=streak">
+  </picture>
+</a>
 
 Point Claude Code and Codex at one local endpoint and run them on any model —
 Kimi, GPT, Qwen, Claude, or anything OpenAI-compatible.
@@ -268,3 +275,12 @@ Unit tests cover the four body translators, the stream state machines, the
 classifier, and route eligibility. Integration tests run the gateway against
 mocked Anthropic and OpenAI upstreams, including pre-stream fallback on 429
 and the blocked-fallback-after-output case.
+
+## Security
+
+<a href="https://www.superagent.sh">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://www.superagent.sh/api/badge/superagent-ai/gateway/card.svg?theme=dark&accent=teal">
+    <img alt="Security posture verified by Superagent" src="https://www.superagent.sh/api/badge/superagent-ai/gateway/card.svg?theme=light&accent=teal">
+  </picture>
+</a>
