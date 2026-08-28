@@ -96,6 +96,10 @@ models:
   glm:
     model: [openrouter/z-ai/glm-5.2, azure/kimi-k2.6]
     display_name: "OpenRouter GLM 5.2 (fallback to Azure Kimi K2.6)"
+  glm-53-flash:
+    model: [openrouter/z-ai/glm-5.3-flash, azure/gpt-5.6-sol]
+    display_name: "OpenRouter GLM 5.3 Flash (fallback to Azure GPT-5.6 Sol)"
+    images: true
   qwen-local:
     model: vllm-local/qwen3-coder
     # model: [vllm-local/qwen3-coder, openrouter/qwen/qwen3-coder]  # with fallback
